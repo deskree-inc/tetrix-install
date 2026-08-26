@@ -1,0 +1,36 @@
+# Minimal Helm values for Tetrix Enterprise.
+#
+# The chart is an OCI artifact — you do not need a GitHub clone:
+#   helm upgrade --install tetrix \
+#     oci://registry-1.docker.io/deskree/tetrixaidb-chart \
+#     --version 0.8.41 \
+#     --namespace tetrix --create-namespace \
+#     --timeout 25m --wait=false \
+#     -f values-example.yaml \
+#     --set-file secrets.licenseToken=./license.jwt
+#
+# Full defaults: helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41
+
+ingress:
+  host: tetrix.example.com
+  tls:
+    certManager:
+      clusterIssuer: letsencrypt-prod
+    # Or bring your own certificate:
+    # existingSecret: tetrix-tls
+
+secrets:
+  # Prefer --set-file so the token never appears in shell history:
+  #   --set-file secrets.licenseToken=./license.jwt
+  licenseToken: ""
+  # Optional — can be set later in the SPA under System → Embedding.
+  # openaiApiKey: ""
+
+# Evaluation without a license token, air-gapped, or your own mirror.
+# First-party images then pull from Docker Hub instead of registry.deskree.com.
+# global:
+#   imageOrigin: ""
+# adminApi:
+#   updater:
+#     registryBroker:
+#       enabled: false

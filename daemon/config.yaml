@@ -1,0 +1,116 @@
+# Rendered for local Docker Compose. Passwords use ${VAR} placeholders resolved
+# at runtime by the daemon via os.ExpandEnv from injected env.
+service:
+  listen:
+    tcp:
+      enabled: true
+      host: "0.0.0.0"
+      port: 7779
+      tls:
+        enabled: false
+    unix:
+      enabled: false
+      path: "/var/run/tetrixaidb.sock"
+  protocol:
+    maxMessageSizeBytes: 4194304
+    idleTimeoutMs: 300000
+    readTimeoutMs: 30000
+    writeTimeoutMs: 30000
+  auth:
+    passwords:
+      - "${TETRIX_PASSWORD}"
+    requireTenant: true
+    # Legacy key name (Helm ConfigMap twin) — Keycloak issuer/audience values.
+    logto:
+      enabled: true
+      issuer: "${KEYCLOAK_ISSUER}"
+      audience: "${KEYCLOAK_AUDIENCE_DAEMON}"
+      appId: "${KEYCLOAK_CLIENT_ID}"
+      autoProvision: true
+      defaultOrg: "default"
+      adminSubjects: []
+      requiredScopes: []
+      webhookSecret: ""
+      defaultOrgId: ""
+      m2mClientId: ""
+      m2mClientSecret: ""
+      collectorsAudienceApi: "${COLLECTORS_AUDIENCE_API}"
+      collectorsAudienceMcp: "${COLLECTORS_AUDIENCE_MCP}"
+  shutdownTimeoutMs: 30000
+
+postgres:
+  host: "postgres"
+  port: 5432
+  user: "tetrix"
+  password: "${POSTGRES_PASSWORD}"
+  database: "tetrixaidb"
+  sslMode: "disable"
+  poolSize: 50
+
+storage:
+  vectorBackend: "pgvector"
+  keywordBackend: "meilisearch"
+  graphBackend: "neo4j"
+  objectBackend: "minio"
+
+limits:
+  maxConcurrentRequests: 10000
+  rateLimits:
+    defaultRps: 5000
+    perTenant: {}
+
+neo4j:
+  uri: "bolt://neo4j:7687"
+  username: "neo4j"
+  password: "${NEO4J_PASSWORD}"
+  database: "neo4j"
+
+meilisearch:
+  host: "http://meilisearch:7700"
+  masterKey: "${MEILI_MASTER_KEY}"
+  indexName: "entities"
+
+minio:
+  endpoint: "minio:9000"
+  accessKey: "${MINIO_ROOT_USER}"
+  secretKey: "${MINIO_ROOT_PASSWORD}"
+  bucket: "tetrix-objects"
+  useSSL: false
+
+embedding:
+  provider: "openai"
+  model: "text-embedding-3-large"
+  dimensions: 1024
+  apiKey: "${OPENAI_API_KEY}"
+  apiBase: ""
+  batchSize: 128
+  maxConcurrent: 20
+  maxTextChars: 15000
+  cache:
+    enabled: true
+    path: "/tmp/tetrixaidb/embeddings.cache"
+    maxEntries: 500000
+
+ingest:
+  queueSize: 50000
+  workers: 16
+  batchSize: 128
+  flushIntervalMs: 200
+  overflowPolicy: "reject"
+
+gc:
+  enabled: true
+  intervalSecs: 10
+  batchSize: 500
+  gracePeriodSecs: 30
+
+annotations:
+  enabled: false
+
+debug:
+  pprofEnabled: false
+  pprofPort: 6060
+
+admin:
+  enabled: true
+  port: 9090

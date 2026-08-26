@@ -1,0 +1,14 @@
+.env
+.env.bak
+.env.backup
+certs/
+runtime/
+.local-license-keys/
+docker-compose.override.yml
+traefik/traefik.yml
+traefik/dynamic/tls.yml
+traefik/dynamic/routes.yml
+traefik/dynamic/routes-collectors.yml
+__pycache__/
+*.pyc
+.DS_Store

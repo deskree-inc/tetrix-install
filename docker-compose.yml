@@ -1,0 +1,1365 @@
+# Tetrix local full stack — Keycloak-native Helm twin (Wave 5 greenfield).
+# Bootstrap: ./scripts/setup.sh
+name: tetrix
+
+x-health-interval: &health-interval
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
+
+# Containers cannot resolve host /etc/hosts entries — reach Traefik on the host :443
+# via host-gateway (Docker Desktop / Linux host-gateway).
+x-local-hosts: &local-hosts
+  extra_hosts:
+    - "${TETRIX_HOST}:host-gateway"
+
+x-collectors-env: &collectors-env
+  TETRIX_ENDPOINT: tcp://daemon:7779
+  TETRIX_USERNAME: ${COLLECTORS_TETRIX_USERNAME:-developer}
+  TETRIX_PASSWORD: ${AIDB_PASSWORD}
+  TETRIX_MOCK: "0"
+  TETRIX_OWNER: ${COLLECTORS_SERVING_ACCOUNT:-tetrix-demo}
+  TETRIX_API_DEV_OWNER: ${COLLECTORS_SERVING_ACCOUNT:-tetrix-demo}
+  TETRIX_MCP_SEEDED_ACCOUNT: ${COLLECTORS_SERVING_ACCOUNT:-tetrix-demo}
+  SIDECAR_PORT: "9090"
+  TETRIX_CONTROL_PLANE_DSN: postgresql+asyncpg://control_plane:${CONTROL_PLANE_DB_PASSWORD}@postgres:5432/control_plane
+  # Keycloak additive override: mode stays "logto"; ISSUER+JWKS_URL repoint verification.
+  TETRIX_API_AUTH_MODE: logto
+  TETRIX_API_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_API}
+  # ADR-0012 — multi-tenant Collectors API (aidb_account = daemon org UUID).
+  # Requires collectors ≥0.8.0 + SPA X-Tetrix-Org-Id. Clean install when enabling
+  # over existing tetrix-demo / slug-owned graphs (no row migration).
+  # Override to "false" only for hermetic single-tenant / Gate overlays.
+  TETRIX_API_AUTH_ORG_IDENTITY: ${COLLECTORS_AUTH_ORG_IDENTITY:-true}
+  # ADR-0016 — MCP org-select via ?org= on /mcp (same toggle as API twin).
+  # Requires collectors image with MCP org-select before enabling in prod.
+  TETRIX_MCP_AUTH_ORG_IDENTITY: ${COLLECTORS_AUTH_ORG_IDENTITY:-true}
+  TETRIX_API_LOGTO_ENDPOINT: ${KEYCLOAK_ISSUER}
+  TETRIX_API_AUTH_ISSUER: ${KEYCLOAK_ISSUER}
+  TETRIX_API_AUTH_JWKS_URL: http://keycloak:8080/auth/realms/tetrix/protocol/openid-connect/certs
+  TETRIX_MCP_AUTH_MODE: logto
+  TETRIX_MCP_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_MCP}
+  TETRIX_MCP_LOGTO_ENDPOINT: ${KEYCLOAK_ISSUER}
+  TETRIX_MCP_AUTH_ISSUER: ${KEYCLOAK_ISSUER}
+  TETRIX_MCP_AUTH_JWKS_URL: http://keycloak:8080/auth/realms/tetrix/protocol/openid-connect/certs
+  TETRIX_MCP_ALLOWED_HOSTS: '["${TETRIX_HOST}", "${TETRIX_HOST}:443"]'
+  # Without this the collectors localhost-only default applies and every Origin-bearing
+  # request 403s "Invalid Origin header" (Claude Desktop); no-Origin clients are unaffected.
+  TETRIX_MCP_ALLOWED_ORIGINS: '["https://${TETRIX_HOST}", "http://${TETRIX_HOST}", "https://claude.ai"]'
+  # ADR-0072 / collectors#287 Lane 2 — the public base URL a source's webhook points back at.
+  # `datasources.webhook_provisioning.public_webhook_base()` reads exactly this name and returns
+  # None when it is empty, which degrades registration to `unconfigured` before the registrar or
+  # the Vault secret writer is touched. It was plumbed NOWHERE — not here and not in the k8s
+  # templates — so the ADR-0072 engine was unreachable in every install regardless of the code.
+  #
+  # EMPTY BY DEFAULT, deliberately. Setting it makes collectors CREATE and DELETE hooks at the
+  # source with a token carrying `admin:repo_hook`; an outbound write to a vendor is not something
+  # a default should switch on. Set it to this install's public base to enable push ingestion —
+  # the receiver is served at `POST /hooks/{owner}/{connection_id}` on collectors-api (unversioned,
+  # at the root like /healthz), which traefik already routes, so the value is normally
+  # `https://${TETRIX_HOST}`.
+  WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
+  DISPATCHER_TICK_SECONDS: "30"
+  DISPATCHER_MAX_BATCH: "50"
+  WORKER_BATCH: "10"
+  WORKER_POLL_SECONDS: "2"
+
+services:
+  # ── Data stores ─────────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    env_file: .env
+    environment:
+      POSTGRES_DB: tetrixaidb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      CONTROL_PLANE_DB_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tetrixaidb"]
+      <<: *health-interval
+    restart: unless-stopped
+
+  postgres-ensure-keycloak:
+    image: pgvector/pgvector:pg16
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - ./postgres/initdb/04-keycloak.sh:/ensure/04-keycloak.sh:ro
+    entrypoint: ["/bin/bash", "/ensure/04-keycloak.sh"]
+    restart: "no"
+
+  postgres-ensure-control-plane:
+    image: pgvector/pgvector:pg16
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      CONTROL_PLANE_DB_PASSWORD: ${CONTROL_PLANE_DB_PASSWORD}
+    volumes:
+      - ./postgres/initdb/03-control-plane.sh:/ensure/03-control-plane.sh:ro
+    entrypoint: ["/bin/bash", "/ensure/03-control-plane.sh"]
+    restart: "no"
+
+  postgres-ensure-licensing:
+    image: pgvector/pgvector:pg16
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres/initdb/04-licensing.sh:/ensure/04-licensing.sh:ro
+    entrypoint: ["/bin/bash", "/ensure/04-licensing.sh"]
+    restart: "no"
+
+  postgres-ensure-audit-logs:
+    image: pgvector/pgvector:pg16
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres/initdb/05-audit-logs.sh:/ensure/05-audit-logs.sh:ro
+    entrypoint: ["/bin/bash", "/ensure/05-audit-logs.sh"]
+    restart: "no"
+
+  neo4j:
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_server_default__listen__address: 0.0.0.0
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474/ || exit 1"]
+      <<: *health-interval
+      start_period: 40s
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    env_file: .env
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_DB_PATH: /meili_data/data
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
+      <<: *health-interval
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-09-07T16-13-09Z}
+    env_file: .env
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      <<: *health-interval
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:${MINIO_MC_IMAGE_TAG:-RELEASE.2025-08-13T08-35-41Z}
+    env_file: .env
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+        mc mb --ignore-existing local/tetrix-objects &&
+        echo 'bucket tetrix-objects ready'
+      "
+    restart: "no"
+
+  # ── Vault (collectors credentials) ──────────────────────────────────────────
+  # hashicorp/vault runs as uid 100:gid 1000; named volumes are root-owned by default.
+  vault-perms:
+    image: busybox:1.37
+    user: "0:0"
+    volumes:
+      - vault-data:/vault/data
+    command: ["sh", "-c", "chown -R 100:1000 /vault/data && chmod -R u+rwX /vault/data"]
+    restart: "no"
+
+  vault:
+    image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
+    depends_on:
+      vault-perms:
+        condition: service_completed_successfully
+    user: "100:1000"
+    environment:
+      VAULT_LOCAL_CONFIG: |
+        {"storage":{"file":{"path":"/vault/data"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}},"ui":false}
+      SKIP_SETCAP: "true"
+    command: ["server"]
+    volumes:
+      - vault-data:/vault/data
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      # `vault status` exits 0 unsealed, 2 SEALED, 1 unreachable. Only 0 is
+      # healthy: a sealed Vault answers its API and every secret on the box is
+      # unavailable, which is the state a reachability check calls fine.
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status >/dev/null 2>&1"]
+      <<: *health-interval
+      start_period: 30s
+    restart: unless-stopped
+
+  vault-init:
+    image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
+    depends_on:
+      vault:
+        condition: service_started
+    environment:
+      VAULT_ADDR: http://vault:8200
+      OUT_FILE: /out/vault.env
+      EXISTING_ENV: /out/vault.env
+      VAULT_KV_MOUNT: secret
+      VAULT_TOKEN_PERIOD: 768h
+      SKIP_SETCAP: "true"
+      # Cloud: setup.sh / compose.sh export TETRIX_DEPLOYMENT_MODE=cloud; the
+      # collectors token is interpolated from the tmpfs runtime.env (.env symlink).
+      # Dev stays on the Shamir path (default). Distinct API/webhook brokers are
+      # forwarded if present and never invented.
+      TETRIX_DEPLOYMENT_MODE: ${TETRIX_DEPLOYMENT_MODE:-dev}
+      COLLECTORS_VAULT_TOKEN: ${COLLECTORS_VAULT_TOKEN:-}
+      COLLECTORS_API_VAULT_TOKEN: ${COLLECTORS_API_VAULT_TOKEN:-}
+      COLLECTORS_WEBHOOK_VAULT_TOKEN: ${COLLECTORS_WEBHOOK_VAULT_TOKEN:-}
+    volumes:
+      - ./runtime:/out
+      - ./scripts/vault-init.sh:/vault-init.sh:ro
+    entrypoint: ["/bin/sh", "/vault-init.sh"]
+    restart: "no"
+
+  vault-unseal:
+    image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_ENV_FILE: /vault-init/vault.env
+      SKIP_SETCAP: "true"
+    volumes:
+      - ./runtime:/vault-init:ro
+      - ./scripts/vault-unseal.sh:/vault-unseal.sh:ro
+    entrypoint: ["/bin/sh", "/vault-unseal.sh"]
+    healthcheck:
+      # This container's entire job is "Vault is unsealed", so that is what it
+      # reports. A watcher that is running while Vault stays sealed is failing.
+      test: ["CMD-SHELL", "VAULT_ADDR=http://vault:8200 vault status >/dev/null 2>&1"]
+      <<: *health-interval
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Keycloak (IdP) ──────────────────────────────────────────────────────────
+  keycloak:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-c7f138e}
+    depends_on:
+      postgres-ensure-keycloak:
+        condition: service_completed_successfully
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_FEATURES: organization,scripts,update-email
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    command: ["start", "--import-realm"]
+    # Provision script waits for admin API + realm; avoid brittle image-specific probes.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 45s
+    restart: unless-stopped
+
+  keycloak-provision:
+    # curl+jq Admin REST (fast). Set KEYCLOAK_PROVISION_FAST=0 and swap image to
+    # deskree/tetrix-iam for the legacy kcadm path.
+    image: ${KEYCLOAK_PROVISION_IMAGE:-badouralix/curl-jq:alpine}
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KEYCLOAK_PROVISION_FAST: ${KEYCLOAK_PROVISION_FAST:-1}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: tetrix
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-tetrix-frontend}
+      KEYCLOAK_AUDIENCE_DAEMON: ${KEYCLOAK_AUDIENCE_DAEMON}
+      KEYCLOAK_AUDIENCE_API: ${COLLECTORS_AUDIENCE_API}
+      KEYCLOAK_AUDIENCE_MCP: ${COLLECTORS_AUDIENCE_MCP}
+      KEYCLOAK_TRUSTED_HOSTS: ${KEYCLOAK_TRUSTED_HOSTS:-localhost 127.0.0.1 anysphere.cursor-mcp www.cursor.com claude.ai chatgpt.com tetrix.local}
+      KEYCLOAK_ALLOWED_DCR_SCOPES: ${KEYCLOAK_ALLOWED_DCR_SCOPES:-res:mcp graph:read sessions:write hitl:write basic profile email offline_access}
+      # ADR-0027. Helm passes both of these to the provision Job as well as the repair
+      # CronJob; Compose must too, or setting KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN= in .env
+      # only stops the repair loop while the next provision still writes ["3600"] onto the
+      # policy component — and the SPI then stamps every newly registered Cursor client.
+      # Documented "empty/0 ⇒ inert" has to mean inert on BOTH writers.
+      KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN: ${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}
+      KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES: ${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/}
+      TETRIX_PUBLIC_URL: ${TETRIX_PUBLIC_URL}
+      TETRIX_SPA_BASE_PATH: ""
+      KEYCLOAK_OWNER_EMAIL: ${KEYCLOAK_OWNER_EMAIL}
+      # Empty in cloud mode: there is no Owner bootstrap credential. The
+      # provisioner falls back to the one-time Keycloak action email whenever
+      # TETRIX_DEPLOYMENT_MODE=cloud. #235: KEYCLOAK_OWNER_ORG_ID is still
+      # deliberately NOT passed here.
+      KEYCLOAK_OWNER_PASSWORD: ${KEYCLOAK_OWNER_PASSWORD:-}
+      TETRIX_DEPLOYMENT_MODE: ${TETRIX_DEPLOYMENT_MODE:-dev}
+      TETRIX_DEPLOYMENT_ID: ${TETRIX_DEPLOYMENT_ID:-}
+      TETRIX_DEPLOYMENT_SLUG: ${TETRIX_DEPLOYMENT_SLUG:-}
+      KEYCLOAK_OWNER_INVITE_LIFESPAN_SECONDS: ${KEYCLOAK_OWNER_INVITE_LIFESPAN_SECONDS:-86400}
+      KEYCLOAK_SMTP_HOST: ${KEYCLOAK_SMTP_HOST:-smtp.resend.com}
+      KEYCLOAK_SMTP_PORT: ${KEYCLOAK_SMTP_PORT:-465}
+      KEYCLOAK_SMTP_USERNAME: ${KEYCLOAK_SMTP_USERNAME:-resend}
+      KEYCLOAK_SMTP_FROM_EMAIL: ${KEYCLOAK_SMTP_FROM_EMAIL:-notifications@tetrix.deskree.com}
+      KEYCLOAK_SMTP_FROM_NAME: ${KEYCLOAK_SMTP_FROM_NAME:-Tetrix Cloud}
+      KEYCLOAK_SMTP_SSL: ${KEYCLOAK_SMTP_SSL:-true}
+      KEYCLOAK_SMTP_STARTTLS: ${KEYCLOAK_SMTP_STARTTLS:-false}
+      KEYCLOAK_SMTP_PASSWORD: ${KEYCLOAK_SMTP_PASSWORD:-}
+      # KEYCLOAK_OWNER_ORG_ID is deliberately NOT passed here (#235). This one-shot depends
+      # only on `keycloak: service_started`, so it runs before daemon migrate and can neither
+      # know nor validate organizations.id. Handing it the value is what let a stale uuid out
+      # of .env plant an /orgs/<uuid> group on a reinstall. keycloak-owner-org-{resolve,sync}
+      # own that join, on an id checked against the daemon's organizations table.
+      KEYCLOAK_ADMIN_API_CLIENT_ID: ${KEYCLOAK_ADMIN_API_CLIENT_ID:-tetrix-admin-api}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      KEYCLOAK_PASSWORD_VERIFY_CLIENT_ID: ${KEYCLOAK_PASSWORD_VERIFY_CLIENT_ID:-tetrix-account-verify}
+      KEYCLOAK_PASSWORD_VERIFY_CLIENT_SECRET: ${KEYCLOAK_PASSWORD_VERIFY_CLIENT_SECRET}
+    volumes:
+      - ./scripts/keycloak-provision.sh:/provision/provision.sh:ro
+      # setup.sh materializes the canonical Keycloak helpers here, from the
+      # bundle's own chart-scripts/ in a release or from the repository root in
+      # a full checkout. The bind source must stay inside the project: a
+      # released tar has no repository above it. Long syntax because the short
+      # form cannot carry a `${VAR:-default}` source — the extra colon makes it
+      # an unparseable spec under `docker compose config --no-interpolate`.
+      - type: bind
+        source: ${TETRIX_RUNTIME_DIR:-./runtime}/chart-scripts/keycloak-provision-rest.sh
+        target: /provision/provision-rest.sh
+        read_only: true
+      - type: bind
+        source: ${TETRIX_RUNTIME_DIR:-./runtime}/chart-scripts/keycloak-provision-kcadm.sh
+        target: /provision/provision-kcadm.sh
+        read_only: true
+    entrypoint: ["/bin/sh", "/provision/provision.sh"]
+    restart: "no"
+
+  # KC 26.1.4 (#50807): Claude Code DCR with scope=offline_access drops MCP default
+  # scopes. Helm twin: keycloak.provision.dcrScopeRepair CronJob (default ON).
+  keycloak-dcr-scope-repair:
+    image: ${KEYCLOAK_PROVISION_IMAGE:-badouralix/curl-jq:alpine}
+    depends_on:
+      keycloak-provision:
+        condition: service_completed_successfully
+    environment:
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: tetrix
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN: ${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}
+      KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES: ${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/}
+      DCR_REPAIR_INTERVAL_SECONDS: ${DCR_REPAIR_INTERVAL_SECONDS:-120}
+    volumes:
+      - type: bind
+        source: ${TETRIX_RUNTIME_DIR:-./runtime}/chart-scripts/keycloak-dcr-scope-repair.sh
+        target: /scripts/dcr-scope-repair.sh
+        read_only: true
+      - ./scripts/keycloak-dcr-scope-repair-loop.sh:/scripts/repair-loop.sh:ro
+    entrypoint: ["/bin/sh", "/scripts/repair-loop.sh"]
+    restart: unless-stopped
+
+  # Wave 1 groups need the daemon organizations.id UUID, and keycloak-provision runs before
+  # daemon migrate — so the id is resolved AFTER the daemon is healthy, by two one-shots that
+  # mirror the Helm Job's two containers. ADOPT, NEVER MINT (#235):
+  #   resolve — postgres image, the only one in this stack with psql. Waits for the daemon's own
+  #             organizations row, then either resolves it (KEYCLOAK_OWNER_ORG_ID blank — the
+  #             supported path) or VALIDATES an explicit pin against that table and FAILS on a
+  #             miss. Writes the validated id to the owner-org-id volume.
+  #   sync    — tetrix-iam image, joins the Owner to /orgs/<validated-uuid>/admins (idempotent).
+  # The split exists because deskree/tetrix-iam carries no psql, which is exactly why the sync
+  # one-shot used to trust .env blindly. Helm twin: keycloak-owner-org-sync Job.
+  keycloak-owner-org-resolve:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      daemon:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      ORG_ID_FILE: /out/org_id
+      KEYCLOAK_OWNER_ORG_ID: ${KEYCLOAK_OWNER_ORG_ID:-}
+      AIDB_ORG: ${AIDB_ORG:-default}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGDATABASE: tetrixaidb
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./scripts/keycloak-owner-org-resolve.sh:/provision/resolve.sh:ro
+      - owner-org-id:/out
+    entrypoint: ["/bin/bash", "/provision/resolve.sh"]
+    restart: "no"
+
+  keycloak-owner-org-sync:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-c7f138e}
+    depends_on:
+      keycloak-provision:
+        condition: service_completed_successfully
+      keycloak-owner-org-resolve:
+        condition: service_completed_successfully
+    environment:
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: tetrix
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_OWNER_EMAIL: ${KEYCLOAK_OWNER_EMAIL}
+      ORG_ID_FILE: /out/org_id
+    volumes:
+      - ./scripts/keycloak-owner-org-sync.sh:/provision/sync.sh:ro
+      - owner-org-id:/out:ro
+    entrypoint: ["/bin/bash", "/provision/sync.sh"]
+    restart: "no"
+
+  # ── Core application ────────────────────────────────────────────────────────
+  daemon:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-7dd9f22}
+    <<: *local-hosts
+    env_file:
+      - path: .env
+        required: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      keycloak-provision:
+        condition: service_completed_successfully
+    command: ["--config=/etc/tetrixaidb/config.yaml"]
+    environment:
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_AUDIENCE_DAEMON: ${KEYCLOAK_AUDIENCE_DAEMON}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-tetrix-frontend}
+      COLLECTORS_AUDIENCE_API: ${COLLECTORS_AUDIENCE_API}
+      COLLECTORS_AUDIENCE_MCP: ${COLLECTORS_AUDIENCE_MCP}
+      SSL_CERT_FILE: /etc/ssl/certs/ca-bundle.pem
+    volumes:
+      - ./daemon/config.yaml:/etc/tetrixaidb/config.yaml:ro
+      - ./certs/ca-bundle.pem:/etc/ssl/certs/ca-bundle.pem:ro
+      - daemon-tmp:/tmp
+    ports:
+      # Cloud sets TETRIX_BIND_ADDRESS=127.0.0.1 so nothing but Traefik is
+      # reachable from outside the VM. Dev keeps the old 0.0.0.0 behaviour.
+      - "${TETRIX_BIND_ADDRESS:-0.0.0.0}:7779:7779"
+      # Loopback-only Prometheus endpoints for the Google Cloud Ops Agent.
+      - "127.0.0.1:19090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/healthz || exit 1"]
+      <<: *health-interval
+      start_period: 40s
+    restart: unless-stopped
+
+  remote:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-7dd9f22}
+    <<: *local-hosts
+    env_file:
+      - path: .env
+        required: true
+    depends_on:
+      daemon:
+        condition: service_started
+      keycloak-provision:
+        condition: service_completed_successfully
+    environment:
+      TETRIX_PASSWORD: ${TETRIX_PASSWORD}
+      AIDB_PASSWORD: ${AIDB_PASSWORD}
+      AIDB_USERNAME: ${AIDB_USERNAME}
+      AIDB_ORG: ${AIDB_ORG}
+      MCP_BASE_URL: ${MCP_BASE_URL}
+      DAEMON_HOST: daemon
+      DAEMON_PORT: "7779"
+      DAEMON_ADMIN_PORT: "9090"
+      MCP_PORT: "8787"
+      ADMIN_PORT: "9091"
+      AUTH_PROVIDER: keycloak
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-tetrix-frontend}
+      TETRIX_PUBLIC_URL: ${TETRIX_PUBLIC_URL:-}
+      SSL_CERT_FILE: /etc/ssl/certs/ca-bundle.pem
+    volumes:
+      - ./certs/ca-bundle.pem:/etc/ssl/certs/ca-bundle.pem:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9091/healthz || exit 1"]
+      <<: *health-interval
+    restart: unless-stopped
+
+  gateway:
+    # sha-866bc35 carries GET /system/health (gateway#36/#37, ADR-0010) — the
+    # handler the traefik/dynamic system-health override route points at. On any
+    # EARLIER tag the verifier has no such handler and that route 404s, which is
+    # strictly worse than the partial aggregate it replaces, so this pin is the
+    # route's precondition and the two must move together. Same tag, same reason
+    # as the k8s side (values.yaml gateway.image.tag, verified at the artifact);
+    # the previous default here, sha-222cb23, predates the handler.
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-api-gateway:${GATEWAY_IMAGE_TAG:-sha-b51cd15}
+    env_file: .env
+    depends_on:
+      daemon:
+        condition: service_started
+    environment:
+      PORT: "4181"
+      AUTH_VERIFY_URL: http://daemon:9090
+      VERIFY_CACHE_TTL: ${GATEWAY_CACHE_TTL}
+      PUBLIC_HOSTS: ""
+      LICENSING_CHECK_URL: http://licensing:8000
+      LICENSING_CHECK_TTL: ${LICENSING_CHECK_TTL:-}
+      # GET /system/health registry — the twin of templates/gateway-verifier.yaml
+      # (gateway ADR-0010 as amended, gateway#38, this chart's #244).
+      #
+      # This block is why Settings -> System health showed TWO rows here while
+      # nine services were answering: the k8s side wired its health env vars in
+      # #210 and the compose side never did, so only `licensing` and `knowledge`
+      # appeared — the two that piggyback on the vars above.
+      #
+      # Ports are MEASURED from each container's own HEALTHCHECK, not guessed:
+      # collectors-api is 8080 (not 8000), audit-logs 8090, remote's health is
+      # on its ADMIN port 9091, and Keycloak answers under KC_HTTP_RELATIVE_PATH
+      # (/auth) on the management port — a plain /health/ready 404s.
+      #
+      # `path` defaults to /healthz. Several urls collapse into ONE worst-wins
+      # row: collectors is four processes of one image, and a row reading `ok`
+      # while the worker is dead is worse than no row. To customise, override
+      # this whole value in docker-compose.override.yml.
+      SYSTEM_HEALTH_TARGETS: >-
+        [{"key":"identity","label":"Identity","urls":["http://keycloak:9000"],"path":"/auth/health/ready",
+           "declaredVersion":"${KEYCLOAK_IMAGE_TAG:-sha-c7f138e}"},
+         {"key":"knowledge","label":"Knowledge","urls":["http://daemon:9090"]},
+         {"key":"graph-sync","label":"Graph Replica","urls":["http://remote:9091"]},
+         {"key":"gateway","label":"Gateway","urls":["http://gateway:4181"]},
+         {"key":"frontend","label":"Web App","urls":["http://frontend:8080"]},
+         {"key":"admin-api","label":"Admin API","urls":["http://admin-api:8000"]},
+         {"key":"licensing","label":"Licensing","urls":["http://licensing:8000"]},
+         {"key":"audit","label":"Audit","urls":["http://audit-logs:8090"]},
+         {"key":"collectors","label":"Collectors","urls":["http://collectors-api:8080",
+           "http://collectors-mcp:9090","http://collectors-dispatcher:9090",
+           "http://collectors-worker:9090"]}]
+      # Fallback registry. A gateway image older than gateway#38 ignores
+      # SYSTEM_HEALTH_TARGETS entirely, so these keep such an install at five
+      # rows instead of two — the #244 fix on its own terms. The current image
+      # prefers the registry above and ignores these.
+      ADMIN_API_HEALTH_URL: ${ADMIN_API_HEALTH_URL:-http://admin-api:8000}
+      COLLECTORS_HEALTH_URL: ${COLLECTORS_HEALTH_URL:-http://collectors-api:8080}
+      AUDIT_HEALTH_URL: ${AUDIT_HEALTH_URL:-http://audit-logs:8090}
+      SYSTEM_HEALTH_PROBE_TIMEOUT: ${SYSTEM_HEALTH_PROBE_TIMEOUT:-2s}
+    restart: unless-stopped
+
+  frontend:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-a5e22da}
+    # Multi-arch (amd64+arm64). Default arm64 for Apple Silicon; set FRONTEND_PLATFORM=linux/amd64 on Intel.
+    platform: ${FRONTEND_PLATFORM:-linux/arm64}
+    volumes:
+      - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # ── Admin API + Licensing ───────────────────────────────────────────────────
+  licensing-migrate:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-48d76f3}
+    env_file: .env
+    depends_on:
+      postgres-ensure-licensing:
+        condition: service_completed_successfully
+    environment:
+      TETRIX_LICENSING_DATABASE_DSN: postgresql+asyncpg://tetrix:${POSTGRES_PASSWORD}@postgres:5432/licensing
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+    restart: "no"
+
+  licensing:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-48d76f3}
+    env_file: .env
+    depends_on:
+      licensing-migrate:
+        condition: service_completed_successfully
+    environment:
+      TETRIX_LICENSING_DATABASE_DSN: postgresql+asyncpg://tetrix:${POSTGRES_PASSWORD}@postgres:5432/licensing
+      TETRIX_LICENSING_PROBE_URL: ${LICENSING_PROBE_URL:-https://ops.deskree.com/api/licensing/probe}
+      TETRIX_LICENSING_SUPPORT_TICKETS_URL: ${LICENSING_SUPPORT_TICKETS_URL:-https://ops.deskree.com/api/support/tickets}
+      TETRIX_LICENSING_HELP_CONTENT_URL: ${LICENSING_HELP_CONTENT_URL:-https://ops.deskree.com/api/help/content}
+      # Probe telemetry stamps (vendor fleet view). TETRIX_RELEASE_VERSION is the
+      # applied release pin-set version (setup.sh stamps it from a VERSION file
+      # when this bundle came from a versioned release tarball; empty = unknown).
+      TETRIX_LICENSING_APP_VERSION: ${TETRIX_RELEASE_VERSION:-}
+      TETRIX_LICENSING_CHART_VERSION: ${TETRIX_RELEASE_VERSION:-}
+      TETRIX_LICENSING_INSTALL_MODE: compose
+      TETRIX_LICENSING_REGISTRY_MODE: ${TETRIX_REGISTRY_MODE:-origin}
+      # Optional boot token; pasting in the SPA also works. A real ops-signed
+      # token is required for licensed local testing (not "empty = unlicensed").
+      TETRIX_LICENSING_LICENSE_TOKEN: ${LICENSE_TOKEN:-}
+      # Ignored by current image — keys come from the baked_keys volume below.
+      TETRIX_LICENSING_PUBLIC_KEYS: ${LICENSE_PUBLIC_KEYS:-}
+      # Seat counting (architecture ADR-0014: seats_used = seats_members + pending
+      # invite reservations). COMPOSE-TWIN DRIFT, fixed 2026-08-03: the chart wires
+      # these on by default (templates/licensing-deployment.yaml, with secret.yaml's
+      # LICENSING_IAM_PASSWORD falling back to tetrixPassword), but this file left
+      # all three empty — so a Helm install counted seats while an otherwise
+      # identical compose stack reported `seats_used: null` and the panel read
+      # "unknown used of N", with no error anywhere to explain it (the adapter's
+      # documented fail-safe: no endpoint -> no seat source -> None).
+      #
+      # Defaults mirror the admin-api service's IAM wiring in this same file: the
+      # same daemon, and the superadmin login, because listing every org
+      # (LIST_ORGS, needed for the install-wide count) requires
+      # platform_admin/superadmin — see licensing/iam_seats.py.
+      TETRIX_LICENSING_IAM_ENDPOINT: ${LICENSING_IAM_ENDPOINT:-tcp://daemon:7779}
+      TETRIX_LICENSING_IAM_USERNAME: ${LICENSING_IAM_USERNAME:-superadmin}
+      TETRIX_LICENSING_IAM_PASSWORD: ${LICENSING_IAM_PASSWORD:-${ADMIN_API_IAM_PASSWORD:-}}
+    # Image reads /app/licensing/baked_keys/public_keys.json only (env ignored).
+    # setup.sh always fetches Deskree ops keys (.keys) into .local-license-keys/
+    # — same trust path as Helm's licensing-baked-keys ConfigMap (kid=k1).
+    volumes:
+      - ./.local-license-keys:/app/licensing/baked_keys:ro
+    healthcheck:
+      # Self-probe with the image's own Python: no curl is added to a production image just so Compose can tell running from ready.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  admin-api:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-6b8a3aa}
+    env_file: .env
+    depends_on:
+      licensing:
+        condition: service_started
+      keycloak-provision:
+        condition: service_completed_successfully
+    environment:
+      TETRIX_ADMIN_API_LICENSING_BASE_URL: http://licensing:8000
+      AUDIT_SERVICE_URL: ${ADMIN_API_AUDIT_URL:-http://audit-logs:8090}
+      AUDIT_SERVICE_TOKEN: ${ADMIN_API_AUDIT_TOKEN:-dev-admin-ingest}
+      AUTH_PROVIDER: keycloak
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-tetrix-frontend}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE_DAEMON}
+      KEYCLOAK_SCOPES: ${KEYCLOAK_SCOPES:-openid email profile}
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080/auth
+      KEYCLOAK_ADMIN_REALM: tetrix
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_API_CLIENT_ID:-tetrix-admin-api}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      KEYCLOAK_PASSWORD_VERIFY_CLIENT_ID: ${KEYCLOAK_PASSWORD_VERIFY_CLIENT_ID:-tetrix-account-verify}
+      KEYCLOAK_PASSWORD_VERIFY_CLIENT_SECRET: ${KEYCLOAK_PASSWORD_VERIFY_CLIENT_SECRET}
+      TETRIX_PUBLIC_URL: ${TETRIX_PUBLIC_URL:-https://tetrix.local}
+      # App-sent invite email — ON by default (tetrix-admin-api ADR-0005 amendment 2026-07-31).
+      # Keycloak's own mail only reaches an invitee who still needs a password, so this is the
+      # only channel that can notify someone who already has an account (re-invited member,
+      # cross-org invite). Set false to opt out.
+      TETRIX_INVITE_EMAIL: ${TETRIX_INVITE_EMAIL:-true}
+      # Collectors read-model reset for the org graph wipe (ADR-0021 D4). In-cluster
+      # service address — admin-api cannot reach TETRIX_PUBLIC_URL from inside the
+      # network (measured: connection refused). Unset => the wipe 502s and deletes
+      # nothing.
+      TETRIX_ADMIN_API_COLLECTORS_URL: ${ADMIN_API_COLLECTORS_URL:-http://collectors-api:8080}
+      TETRIX_ADMIN_API_IAM_ENDPOINT: ${ADMIN_API_IAM_ENDPOINT:-tcp://daemon:7779}
+      TETRIX_ADMIN_API_IAM_USERNAME: ${ADMIN_API_IAM_USERNAME:-superadmin}
+      TETRIX_ADMIN_API_IAM_PASSWORD: ${ADMIN_API_IAM_PASSWORD}
+      # Platform self-update sibling (Helm twin: admin-api ConfigMap keys).
+      TETRIX_ADMIN_API_UPDATER_BASE_URL: http://updater:8000
+      TETRIX_ADMIN_API_UPDATER_TIMEOUT_S: ${UPDATER_TIMEOUT_S:-10}
+    healthcheck:
+      # Same self-probe as licensing; both are the same Python base image.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # ── Platform self-update (tetrix-architecture ADR-0022 Phase C/D) ────────────
+  # In-place upgrade service — the compose twin of the Helm updater Deployment +
+  # helm-run Job. Owner triggers it from the SPA; admin-api (is_platform_admin +
+  # feature flag) is the only caller. NO published ports: it is reachable only on
+  # the project's internal compose network as http://updater:8000, and it is not
+  # routed through Traefik.
+  #
+  # ⚠ DOCKER.SOCK TRUST IMPLICATION — stated honestly (ADR-0022 D3):
+  # mounting /var/run/docker.sock gives this container ROOT-EQUIVALENT control of
+  # the Docker host. It can start any container with any mount, so it is not
+  # meaningfully sandboxed from the host. This is the same trust model as
+  # Watchtower / Portainer, and it is what makes an in-place `compose pull && up
+  # -d` possible at all: the apply runs in a TRANSIENT SIBLING container
+  # (`docker run --rm`) so it survives this container being recreated by the very
+  # upgrade it is applying. It is bounded by: no inbound exposure, license +
+  # signed-manifest verification before any apply, forward-to-latest-allowed only
+  # (D6a), and a pin snapshot for restore on failure (D3/D6).
+  #
+  # OPT-IN via the `updater` compose profile — the twin of Helm's
+  # adminApi.updater.enabled=false. `docker compose up -d` does NOT start this
+  # service; `docker compose --profile updater up -d` does (or set
+  # COMPOSE_PROFILES=updater in .env). That is what makes the trade refusable and
+  # is REQUIRED while UPDATER_IMAGE_TAG is the unpublished placeholder: compose's
+  # default `--pull missing` treats an unresolvable image as fatal for the WHOLE
+  # `up`, so a non-profiled updater would abort the one-command bootstrap
+  # (scripts/setup.sh ends in `docker compose up -d` under `set -euo pipefail`)
+  # and none of the rest of the stack would start.
+  # "Delete the service" is NOT an opt-out: the documented manual upgrade path
+  # (README.md § Upgrades → 2) extracts the release bundle over the project with
+  # `tar -xzf`, which restores docker-compose.yml and the service with it.
+  updater:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-48d76f3}
+    profiles: ["updater"]
+    # Deliberately NO `env_file: .env` (unlike its siblings): nothing here is read
+    # from the stack's secret env, and the fewer secrets in this container's
+    # environment the less an upgrade log can ever echo. Everything below is
+    # interpolated by compose.
+    #
+    # That is NOT the same as "no access to secrets": the project-directory mount
+    # below necessarily exposes `.env`, `certs/` and `runtime/vault.env` to this
+    # container, because rewriting the image pins in `.env` and running
+    # `docker compose up -d` in the project IS the upgrade. Combined with
+    # docker.sock above, treat this container as trusted with the whole host.
+    depends_on:
+      licensing:
+        condition: service_started
+    environment:
+      TETRIX_UPDATER_INSTALL_MODE: compose
+      # Applied pin-set version (setup.sh stamps it from the release bundle's
+      # VERSION file; empty = unknown, so "check" reports no update available).
+      TETRIX_UPDATER_CURRENT_VERSION: ${TETRIX_RELEASE_VERSION:-}
+      TETRIX_UPDATER_LICENSING_BASE_URL: http://licensing:8000
+      TETRIX_UPDATER_LICENSING_TIMEOUT_S: ${UPDATER_TIMEOUT_S:-10}
+      # Licensing's brokered relay — never deskree-ops directly (license token stays in licensing).
+      TETRIX_UPDATER_RELEASES_CHECK_URL: ${UPDATER_RELEASES_CHECK_URL:-http://licensing:8000/v1/update/release}
+      # Documented baked path; current updater images ignore this env (trust root not runtime-settable).
+      TETRIX_UPDATER_MANIFEST_KEYS_PATH: ${UPDATER_MANIFEST_KEYS_PATH:-/app/updater/baked_keys/public_keys.json}
+      TETRIX_UPDATER_REGISTRY_MODE: ${TETRIX_REGISTRY_MODE:-origin}
+      # Registry broker v2 (ADR-0024). `.env.example` now ships TETRIX_BROKER_ENABLED
+      # ON, in step with TETRIX_IMAGE_ORIGIN — the two describe the same decision
+      # from opposite ends and a fresh install no longer pulls public images.
+      #
+      # This turns the transient apply sibling into a **just-in-time** minter: it
+      # fetches a short-lived credential for the pull it is about to do (ADR-0024
+      # P5). That path is NOT covered by scripts/install-credential-timer.sh, which
+      # keeps the HOST's `docker login` fresh for `docker compose pull`. A
+      # self-upgrade runs inside a sibling container that does not share the host's
+      # docker config, so with this off it would reach the repointed origin with no
+      # credential at all — and a credential lives at most an hour, so a timer could
+      # not have covered it anyway. Fetching at pull time is both the only option
+      # here and the fresher one.
+      #
+      # The compose default below stays `false` deliberately: this file must remain
+      # correct for a checkout with no .env, where TETRIX_IMAGE_ORIGIN is also unset
+      # and images come from Docker Hub. .env.example is what pairs them.
+      #
+      # Still an explicit flag, never derived: an origin-pull mode with a pull
+      # secret is exactly what a `transitional_static` install looks like, so
+      # guessing would relabel every existing install the day this shipped.
+      TETRIX_UPDATER_BROKER_ENABLED: ${TETRIX_BROKER_ENABLED:-false}
+      # Licensing's brokered relay — never deskree-ops directly, so the license
+      # token stays in the licensing service (ADR-0024 invariant 5).
+      TETRIX_UPDATER_REGISTRY_CREDENTIAL_URL: ${UPDATER_REGISTRY_CREDENTIAL_URL:-http://licensing:8000/v1/update/registry-credential}
+      TETRIX_UPDATER_COOLDOWN_S: ${UPDATER_COOLDOWN_S:-900}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-tetrix}
+      # Two different paths to the SAME directory, deliberately separate:
+      #   _DIR       where THIS container reads/writes the project. A FIXED
+      #              in-container path, never the host path: an earlier revision
+      #              mounted the project at ${COMPOSE_PROJECT_DIR} inside the
+      #              container too, so a project unpacked to /app (or any path the
+      #              image also uses) mounted OVER the image's own /app and hid the
+      #              baked release-manifest verify keyset — the updater would then
+      #              reject every signed release it fetched.
+      #   _HOST_DIR  the ABSOLUTE HOST path (setup.sh stamps COMPOSE_PROJECT_DIR),
+      #              used ONLY to build the transient apply sibling's
+      #              `docker run -v $HOST_DIR:$HOST_DIR` — a container path would
+      #              be meaningless to the host daemon. Empty (no setup.sh) =>
+      #              in-place reads/writes still work; the sibling apply needs it.
+      TETRIX_UPDATER_COMPOSE_PROJECT_DIR: /compose
+      TETRIX_UPDATER_COMPOSE_PROJECT_HOST_DIR: ${COMPOSE_PROJECT_DIR:-}
+      TETRIX_UPDATER_COMPOSE_STATE_DIR: /state
+      # Same image, two entrypoints (D3b) — the transient apply sibling. MUST stay
+      # byte-identical to this service's own `image:` line, ORIGIN PREFIX INCLUDED
+      # (the Helm twin pins the same identity via tetrixaidb.image): this value
+      # becomes a host-daemon `docker run`, so an unprefixed ref on an
+      # origin-pinned install names a DIFFERENT image than the one the stack
+      # pulled — a fresh Docker Hub pull, whose bytes are known to diverge from
+      # the origin's (GHCR) for the same tetrix-updater tag. The `image:`-scoped
+      # gates never see env values; scripts/assert-compose-origin-prefix.sh does.
+      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-48d76f3}
+      # ── The fixed ops hook (Cloud M0.3, Tasks 8/9) ────────────────────────────
+      # THIS IS WHAT CLOSES ADR-0022's KNOWN GAP. Compose rollback restores project
+      # files and image pins but NOT database migrations, so a failed upgrade used
+      # to leave a new schema running under old code. The updater now calls
+      # updater-ops.sh for a full pre-upgrade archive, the composite health gate,
+      # and — on failure — a guarded cross-version restore.
+      #
+      # argv-only, four values, no stdin: the updater runs with docker.sock, so a
+      # wider interface here is a wider interface into the host.
+      #
+      # Empty in dev/on-prem, deliberately: those installs keep the existing
+      # ADR-0022 path with no backup hook, and an unset value is how the updater
+      # knows not to call one.
+      TETRIX_UPDATER_COMPOSE_OPS_SCRIPT: ${TETRIX_UPDATER_COMPOSE_OPS_SCRIPT:-}
+      # 8 hours: the RTO commitment. A full restore of a pro_large tenant must fit
+      # inside one timeout, or the rollback is the thing that fails.
+      TETRIX_UPDATER_COMPOSE_OPS_TIMEOUT_S: ${TETRIX_UPDATER_COMPOSE_OPS_TIMEOUT_S:-}
+      TETRIX_UPDATER_COMPOSE_BACKUP_DIR: ${TETRIX_UPDATER_COMPOSE_BACKUP_DIR:-}
+      # SPLIT ENV. The updater snapshots and rewrites this file, and in cloud mode
+      # it must be the release-state file — never `.env`, which is a symlink to the
+      # tmpfs render and holds every credential on the box.
+      TETRIX_UPDATER_COMPOSE_MUTABLE_ENV: ${TETRIX_UPDATER_COMPOSE_MUTABLE_ENV:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Sibling binds for the ops hook. Both are host paths on a tenant VM and
+      # resolve to nothing in a dev checkout, which is why they are variables with
+      # in-project defaults rather than absolute paths.
+      - type: bind
+        source: ${TETRIX_BACKUP_DIR:-./runtime/backups}
+        target: /backups
+      - type: bind
+        source: ${TETRIX_UPDATER_RUNTIME_BIND:-./runtime}
+        target: /run/tetrix
+      # The project dir at a FIXED in-container path (see the two env vars above).
+      # Read/write: the upgrade rewrites the pins in `.env`. It therefore also
+      # exposes certs/ and runtime/ — accounted for in the trust note above.
+      - ${COMPOSE_PROJECT_DIR:-.}:/compose
+      # Upgrade state + pin snapshots (survives recreation of this container;
+      # setup.sh also writes a restorable baseline to runtime/pin-snapshot.env).
+      - updater-state:/state
+    healthcheck:
+      # Profile-gated, so this only ever runs when the updater does.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # ── Audit logs (panel read path /api/audit — ADR-0013) ─────────────────────
+  audit-logs-migrate:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-audit-logs:${AUDIT_LOGS_IMAGE_TAG:-sha-47536d6}
+    env_file: .env
+    depends_on:
+      postgres-ensure-audit-logs:
+        condition: service_completed_successfully
+    environment:
+      AUDIT_DB_DSN: postgres://tetrix:${POSTGRES_PASSWORD}@postgres:5432/audit_logs?sslmode=disable
+    command: ["migrate"]
+    restart: "no"
+
+  audit-logs:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-audit-logs:${AUDIT_LOGS_IMAGE_TAG:-sha-47536d6}
+    env_file: .env
+    depends_on:
+      audit-logs-migrate:
+        condition: service_completed_successfully
+    environment:
+      AUDIT_DB_DSN: postgres://tetrix:${POSTGRES_PASSWORD}@postgres:5432/audit_logs?sslmode=disable
+      AUDIT_HTTP_ADDR: ":8090"
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
+      # Edge forwardAuth already authenticated; trust X-Audit-* (ADR-0013).
+      AUDIT_QUERY_TRUST_HEADERS: "true"
+      AUDIT_INGEST_TOKENS: ${AUDIT_INGEST_TOKENS:-tetrix-admin-api:dev-admin-ingest,tetrix-collectors:dev-collectors-ingest}
+      AUDIT_QUERY_TOKENS: ${AUDIT_QUERY_TOKENS:-dev-admin:dev-query-token}
+    command: ["serve"]
+    expose:
+      - "8090"
+    ports:
+      - "127.0.0.1:19095:8090"
+    restart: unless-stopped
+
+  # ── Collectors (full platform) ──────────────────────────────────────────────
+  # Multi-arch collectors tags (0.8.0+ SemVer). Default arm64; Intel: COLLECTORS_PLATFORM=linux/amd64.
+  collectors-migrate:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    env_file: .env
+    depends_on:
+      postgres-ensure-control-plane:
+        condition: service_completed_successfully
+    environment:
+      TETRIX_CONTROL_PLANE_DSN: postgresql+asyncpg://control_plane:${CONTROL_PLANE_DB_PASSWORD}@postgres:5432/control_plane
+    command: ["migrate"]
+    restart: "no"
+
+  collectors-api:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    env_file:
+      - path: .env
+        required: true
+      # collectors#553 — the API's OWN Vault profile, written by vault-init alongside the
+      # worker's. This service is the only one that receives a user's credential at connect
+      # time, so it is the only one that may mint `onboarding-write`; the file carries the
+      # read-only broker as VAULT_TOKEN plus VAULT_ONBOARDING_TOKEN/_ROLE for the write half.
+      #
+      # Deliberately NOT runtime/vault.env: that file is the WORKER's profile, whose
+      # unprefixed VAULT_TOKEN is the webhook broker and whose VAULT_WEBHOOK_TOKEN_ROLE can
+      # only write `tenants/<owner>/webhooks/*` — handing it to the API makes every SOURCE
+      # credential write 403. And without a VAULT_TOKEN the API does NOT fall back to an
+      # in-memory secret store, whatever an older version of this comment said: `environment:`
+      # below always sets VAULT_ADDR, so api/app/main.py's lifespan takes the Vault branch,
+      # `vault_clients_from_env()` raises `VAULT_ADDR and VAULT_TOKEN must be set to build
+      # Vault clients`, and the container crash-loops from boot. MEASURED on a fresh clean
+      # room built by this chart's own setup.sh: 20 of that line in the API's log and
+      # RestartCount=10 within 60 s of the `up` returning (chart#246).
+      - path: ./runtime/vault-api.env
+        required: false
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+      keycloak-provision:
+        condition: service_completed_successfully
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *collectors-env
+      VAULT_ADDR: http://vault:8200
+      PORT: "8080"
+      AUDIT_SERVICE_URL: ${COLLECTORS_AUDIT_URL:-http://audit-logs:8090}
+      AUDIT_SERVICE_TOKEN: ${COLLECTORS_AUDIT_TOKEN:-dev-collectors-ingest}
+      # Explore agent (helm#271). Scoped to collectors-api — only this profile
+      # reads these. Empty key is a valid install (agent off / degraded dock).
+      EXPLORE_LLM_API_KEY: ${EXPLORE_LLM_API_KEY:-}
+      EXPLORE_LLM_PROVIDER: ${EXPLORE_LLM_PROVIDER:-anthropic}
+      EXPLORE_LLM_MODEL: ${EXPLORE_LLM_MODEL:-claude-haiku-4-5-20251001}
+      EXPLORE_RATE_LIMIT_PER_HOUR: ${EXPLORE_RATE_LIMIT_PER_HOUR:-60}
+    command: ["api"]
+    ports:
+      - "${TETRIX_BIND_ADDRESS:-0.0.0.0}:8080:8080"
+      - "127.0.0.1:19091:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  collectors-mcp:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    env_file: .env
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+      keycloak-provision:
+        condition: service_completed_successfully
+    environment:
+      <<: *collectors-env
+      TETRIX_MCP_PORT: "8090"
+      TETRIX_MCP_SIDECAR_PORT: "9090"
+    command: ["mcp"]
+    ports:
+      - "${TETRIX_BIND_ADDRESS:-0.0.0.0}:8090:8090"
+      - "127.0.0.1:19092:9090"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  collectors-dispatcher:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    env_file: .env
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    environment:
+      <<: *collectors-env
+    command: ["dispatcher"]
+    ports:
+      - "127.0.0.1:19093:9090"
+    healthcheck:
+      # The dispatcher has no HTTP API of its own; its sidecar port is the only thing that can say whether the loop is alive.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/readyz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  collectors-worker:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    env_file:
+      - path: .env
+        required: true
+      - path: ./runtime/vault.env
+        required: false
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *collectors-env
+      VAULT_ADDR: http://vault:8200
+      # VAULT_TOKEN + VAULT_TENANT_TOKEN_ROLE + VAULT_WEBHOOK_TOKEN_ROLE come from
+      # runtime/vault.env (vault-init). This service is the ONLY one that mounts that file, and
+      # the token in it is the WEBHOOK broker (collectors#553 + #597) — a credential with no
+      # capability on the KV mount that mints a short-TTL per-tenant child token per resolve.
+      # Do not mount runtime/vault.env into another service: its unprefixed VAULT_* keys are
+      # this worker's configuration, not a shared Vault profile.
+    command: ["worker"]
+    ports:
+      - "127.0.0.1:19094:9090"
+    healthcheck:
+      # Same sidecar probe as the dispatcher. A worker that lost its Vault token keeps running and stops working.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/readyz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # Proactive credential health check (collectors ADR-0050 §5; collectors#603) — OPT-IN, in the
+  # `healthcheck` compose profile (twin of Helm's collectors.healthcheck.enabled=false; see
+  # .env.example). Sweeps connections whose next_check_at is due, re-probes the credential with
+  # the same validator the API uses on connect, and flips the row to the sticky `needs_reauth`
+  # after HEALTHCHECK_MAX_AUTH_FAILURES consecutive rejections. Single replica by design.
+  #
+  # Vault: it needs the READ-ONLY broker and nothing else — it resolves a credential only to
+  # re-probe it, never writes a secret, never writes AIDB. runtime/vault-read.env (written by
+  # vault-init, collectors#603) carries exactly that: VAULT_TOKEN = the reader broker +
+  # VAULT_KV_MOUNT / VAULT_TOKEN_MOUNT_ACCESSOR / VAULT_TENANT_TOKEN_ROLE. Deliberately NOT
+  # runtime/vault.env (the worker's file — its VAULT_TOKEN is the WEBHOOK broker) and NOT
+  # runtime/vault-api.env (carries VAULT_ONBOARDING_TOKEN, a write capability this profile must
+  # never hold). Twin of `tetrixaidb.collectors.envRefs` in the k8s _helpers.
+  #
+  # No daemon dependency: readiness is the control-plane ping (`ping_fresh`), and the profile
+  # never opens an SDK client.
+  #
+  # ⚠️ PRECONDITION before `--profile healthcheck`: COLLECTORS_IMAGE_TAG must be an image that
+  # contains collectors#601 (`be07342`). The chart pin is now `sha-5350737` (after #601).
+  # The Compose default below is still `0.18.0`, which PREDATES it — set
+  # COLLECTORS_IMAGE_TAG in .env to a tag at or after be07342 before
+  # `--profile healthcheck`. Also: runtime/vault-read.env is `required: false` below — an existing
+  # project whose vault-init already ran will NOT rewrite it; `docker compose run --rm vault-init`
+  # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
+  # service starts without VAULT_TOKEN.
+  collectors-healthcheck:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    profiles: ["healthcheck"]
+    env_file:
+      - path: .env
+        required: true
+      - path: ./runtime/vault-read.env
+        required: false
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *collectors-env
+      VAULT_ADDR: http://vault:8200
+      HEALTHCHECK_TICK_SECONDS: ${HEALTHCHECK_TICK_SECONDS:-300}
+      HEALTHCHECK_INTERVAL_SECONDS: ${HEALTHCHECK_INTERVAL_SECONDS:-3600}
+      HEALTHCHECK_MAX_AUTH_FAILURES: ${HEALTHCHECK_MAX_AUTH_FAILURES:-3}
+    command: ["healthcheck"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # HITL answer write-back consumer (collectors ADR-0068 §3 / ADR-0032; collectors#610) — OPT-IN,
+  # in the `hitl` compose profile (twin of Helm's collectors.hitl.enabled=false; see .env.example).
+  #
+  # `POST /hitl/questions/{id}/answer` records the human verdict and stages a `hitl_answered`
+  # event on `hitl_question.events` in the same transaction. This service is the ONLY thing that
+  # drains that queue and folds the answer into AIDB at `origin="human"` / `tier_human_confirm`.
+  # Without it the loop dead-ends in silence: the answer is stored, the event is staged, the graph
+  # never changes, and nothing errors — the queue just grows. Answers accepted while it is off are
+  # replayed when it is turned on (deterministic natural-key upsert, so replay is safe).
+  #
+  # Single replica by design: at-least-once relay + per-consumer inbox dedup makes a second one
+  # safe but pointless — it would only contend on the same queue lock.
+  #
+  # Vault: NONE. It resolves no credential — unlike collectors-healthcheck it mounts no
+  # runtime/vault*.env at all, and unlike collectors-worker it holds no webhook broker. It needs
+  # the control plane (the answered row + the queue) and the daemon (the AIDB write).
+  #
+  # It DOES depend on the daemon, which is the difference from collectors-healthcheck: the
+  # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
+  # wait-for-daemon init container.
+  collectors-hitl:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    profiles: ["hitl"]
+    env_file: .env
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    environment:
+      <<: *collectors-env
+      HITL_BATCH: ${HITL_BATCH:-10}
+      HITL_POLL_SECONDS: ${HITL_POLL_SECONDS:-5}
+    command: ["hitl"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # Identity projector (collectors ADR-0052 / ADR-0041; collectors#611) — OPT-IN, in the
+  # `identity-consumer` compose profile (twin of Helm's collectors.identityConsumer.enabled=false;
+  # see .env.example).
+  #
+  # `POST/PATCH/DELETE /identities` writes identity_links and stages an identity.mapping.saved
+  # event in the same transaction. This service is the ONLY thing that drains
+  # identity_link.events and turns those mappings into a person:<owner>/<uuid> node with
+  # human-asserted same_as edges. Without it the mapping is stored and never projected — the graph
+  # keeps treating one human as several unrelated identities, and the admin who saved the mapping
+  # reasonably assumes it took effect. Nothing errors; the queue grows. Events queued while it is
+  # off are replayed when it is turned on (deterministic natural-key upsert).
+  #
+  # It relays as well as drains, so it does not need the `relay` service.
+  #
+  # Vault: NONE. It resolves no credential — it mounts no runtime/vault*.env at all. It needs the
+  # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
+  # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
+  collectors-identity-consumer:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    profiles: ["identity-consumer"]
+    env_file: .env
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    environment:
+      <<: *collectors-env
+      IDENTITY_CONSUMER_BATCH: ${IDENTITY_CONSUMER_BATCH:-10}
+      IDENTITY_CONSUMER_POLL_SECONDS: ${IDENTITY_CONSUMER_POLL_SECONDS:-5}
+    command: ["identity-consumer"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # Session projector (collectors ADR-0045 / ADR-0041; chart#254). DEFAULT ON —
+  # twin of Helm's collectors.sessionConsumer.enabled=true. A profile here is the
+  # drift the fleet measured: compose shipped none, K8s shipped the projector.
+  # `assert-updater-wiring.sh` fails if this service is missing or profiled.
+  #
+  # `save_session` writes the checkpoint to the control plane and stages a
+  # coding_session.events message in the same transaction. This service is the ONLY
+  # thing that drains that queue and projects an agent_session node plus session→repo
+  # edges. Without it an agent can save all day and session_context / repo_sessions
+  # answer "not found". Nothing errors; the queue grows.
+  #
+  # Vault: NONE. It resolves no credential — it mounts no runtime/vault*.env. It needs
+  # the control plane (the session row + the queue) and the daemon (the AIDB write),
+  # which is why `depends_on: daemon` is here — the Compose twin of the chart's
+  # wait-for-daemon init container. Single replica: never two projectors on one queue.
+  collectors-session-consumer:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-0.18.0}
+    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
+    env_file: .env
+    depends_on:
+      collectors-migrate:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    environment:
+      <<: *collectors-env
+      SESSION_CONSUMER_BATCH: ${SESSION_CONSUMER_BATCH:-10}
+      SESSION_CONSUMER_POLL_SECONDS: ${SESSION_CONSUMER_POLL_SECONDS:-5}
+    command: ["session-consumer"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=2)",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+  traefik:
+    image: traefik:v3.3
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+      remote:
+        condition: service_started
+      frontend:
+        condition: service_started
+      collectors-api:
+        condition: service_started
+      collectors-mcp:
+        condition: service_started
+      admin-api:
+        condition: service_started
+      audit-logs:
+        condition: service_started
+    ports:
+      # Traefik is the ONLY service that publishes on all interfaces in cloud
+      # mode — every other port is bound to TETRIX_BIND_ADDRESS=127.0.0.1. :80 is
+      # not optional there: ACME HTTP-01 validates over it.
+      - "80:80"
+      - "443:443"
+    volumes:
+      # traefik.yml and dynamic/tls.yml are RENDERED from the two .tpl files by
+      # scripts/render-traefik-tls.sh (setup.sh calls it), because the ACME block
+      # exists in cloud mode and must not in dev. TETRIX_TRAEFIK_DIR moves the
+      # whole rendered tree to /run/tetrix/runtime/traefik on a tenant VM; the
+      # default keeps dev rendering in place exactly as before.
+      # Long syntax because the short form cannot carry a `${VAR:-default}`
+      # source — the extra colon makes it an unparseable spec.
+      - type: bind
+        source: ${TETRIX_TRAEFIK_DIR:-./traefik}/traefik.yml
+        target: /etc/traefik/traefik.yml
+        read_only: true
+      - type: bind
+        source: ${TETRIX_TRAEFIK_DIR:-./traefik}/dynamic
+        target: /etc/traefik/dynamic
+        read_only: true
+      - ./certs:/certs:ro
+      # ACME account key + issued certificates. This is the ONE Traefik secret
+      # persisted locally, and it has to be: Let's Encrypt renewal requires
+      # account continuity, and re-registering on every reboot would burn the
+      # rate limit and eventually leave the VM with no certificate. The GCP data
+      # disk is encrypted, the file is 0600, and backup.sh excludes it — an ACME
+      # account restored into a second VM would fight the first one for renewal.
+      - type: bind
+        source: ${TETRIX_ACME_DIR:-./runtime/acme}
+        target: /acme
+    healthcheck:
+      # `ping: {}` in the rendered static config is what makes this work; there
+      # is no other Traefik self-probe that does not require the dashboard.
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      <<: *health-interval
+    restart: unless-stopped
+
+  # ── Ops helper (health gate probe) ──────────────────────────────────────────
+  # Audit and gateway are distroless: no shell, no curl, so they cannot probe
+  # themselves with a Compose healthcheck. Rather than add a shell to a
+  # production image, health-gate.sh runs one-off requests from here, on the
+  # project network, with the same image the provisioner already uses (so the
+  # release lock already pins it and no new image enters the bundle).
+  #
+  # In the `ops` profile: it never runs as part of `up`.
+  health-probe:
+    image: ${KEYCLOAK_PROVISION_IMAGE:-badouralix/curl-jq:alpine}
+    profiles: ["ops"]
+    entrypoint: ["curl"]
+    command: ["--version"]
+    restart: "no"
+
+volumes:
+  postgres-data:
+  # #235: the validated Owner org id, handed from keycloak-owner-org-resolve to
+  # keycloak-owner-org-sync. A named volume, so `down -v` clears it with everything else and a
+  # stale id can never be re-read on the next install.
+  owner-org-id:
+  neo4j-data:
+  meilisearch-data:
+  minio-data:
+  vault-data:
+  daemon-tmp:
+  updater-state:
