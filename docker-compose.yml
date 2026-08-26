@@ -679,7 +679,7 @@ services:
     restart: unless-stopped
 
   admin-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-6b8a3aa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-195f930}
     env_file: .env
     depends_on:
       licensing:
@@ -1111,7 +1111,7 @@ services:
   # never opens an SDK client.
   #
   # ⚠️ PRECONDITION before `--profile healthcheck`: COLLECTORS_IMAGE_TAG must be an image that
-  # contains collectors#601 (`be07342`). The chart pin is now `sha-5350737` (after #601).
+  # contains collectors#601 (`be07342`). The chart pin is now `sha-e2abdd9` (after #601).
   # The Compose default below is still `0.18.0`, which PREDATES it — set
   # COLLECTORS_IMAGE_TAG in .env to a tag at or after be07342 before
   # `--profile healthcheck`. Also: runtime/vault-read.env is `required: false` below — an existing
