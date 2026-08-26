@@ -78,12 +78,12 @@ Requires Docker + Compose v2.24+, `openssl`, `curl`, and `python3`.
 ### 1 — Get these files
 
 **Production (recommended):** download the checksummed release asset from this
-repository. Take the SHA-256 from the [v0.8.41 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.41)
+repository. SHA-256 is also in the [v0.8.41 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.41)
 (`compose.bundle_sha256`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 0.8.41 --sha256 "$COMPOSE_BUNDLE_SHA256" ~/tetrix-docker
+  | bash -s -- --version 0.8.41 --sha256 25fbdd5d28ac028e898ece9042e014a63df68db58e0a7ca4971182de805214a6 ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 
