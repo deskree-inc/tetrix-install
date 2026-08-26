@@ -51,9 +51,15 @@ collectors becoming Ready before those hooks finish. Watch Jobs with
 `kubectl -n tetrix get jobs`.
 
 A starter values file is in [`helm/values-example.yaml`](helm/values-example.yaml).
-You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41`.
+A commented customer-safe skeleton is [`helm/values-reference.yaml`](helm/values-reference.yaml).
+The curated parameter catalog (every typical key, Table 1.8-G secret keys, unlicensed
+path, external DBs, opt-in collectors) is **[`HELM.md`](HELM.md)**.
+You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41`
+for the machine-readable full catalog.
 
-**Without a license token** (Docker Hub / air-gapped / your own mirror):
+**Without a license token** (Docker Hub / air-gapped / your own mirror).
+First-party `deskree/*` images on Docker Hub are **private** — create a pull
+secret first or pods stay in `ImagePullBackOff`:
 
 ```bash
 helm upgrade --install tetrix \
@@ -63,7 +69,8 @@ helm upgrade --install tetrix \
   --set ingress.host=tetrix.yourcompany.com \
   --set ingress.tls.certManager.clusterIssuer=letsencrypt-prod \
   --set global.imageOrigin="" \
-  --set adminApi.updater.registryBroker.enabled=false
+  --set adminApi.updater.registryBroker.enabled=false \
+  --set 'global.imagePullSecrets[0].name=your-dockerhub-secret'
 ```
 
 Passwords auto-generate on first install and are reused on upgrade. Pin any

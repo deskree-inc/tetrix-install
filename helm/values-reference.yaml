@@ -1,0 +1,188 @@
+# Customer-safe Helm values skeleton for Tetrix Enterprise 0.8.41.
+# Commented keys only — no hostnames, no secrets, no cluster names.
+#
+# Install:
+#   helm upgrade --install tetrix \
+#     oci://registry-1.docker.io/deskree/tetrixaidb-chart \
+#     --version 0.8.41 \
+#     --namespace tetrix --create-namespace \
+#     --timeout 25m --wait=false \
+#     -f values-reference.yaml \
+#     --set ingress.host=tetrix.yourcompany.com \
+#     --set ingress.tls.certManager.clusterIssuer=letsencrypt-prod \
+#     --set-file secrets.licenseToken=./license.jwt
+#
+# Full machine-readable catalog:
+#   helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41
+# Curated parameter tables: ../HELM.md
+
+# ---------------------------------------------------------------------------
+# Global
+# ---------------------------------------------------------------------------
+# global:
+#   imageOrigin: "registry.deskree.com/"   # "" = Docker Hub (private deskree/*; needs a pull secret)
+#   imageRegistry: ""                      # air-gapped mirror prefix, e.g. registry.internal/
+#   imagePullSecrets: []                   # [{name: your-dockerhub-secret}] on the Docker Hub path
+#   imageTag: ""
+#   storageClass: ""                       # empty = cluster default
+
+# ---------------------------------------------------------------------------
+# Ingress and TLS
+# ---------------------------------------------------------------------------
+ingress:
+  # host: tetrix.example.com               # required; must resolve from inside the cluster
+  # publicPort: ""                         # e.g. "18080" for kubectl port-forward evaluation
+  tls:
+    # enabled: true                        # false only for localhost evaluation
+    certManager:
+      clusterIssuer: letsencrypt-prod
+    # existingSecret: tetrix-tls           # alternative to cert-manager
+
+# daemon:
+#   oidcLoopbackProxy:
+#     enabled: false                       # true only with publicPort on minikube / laptop
+
+# traefik:
+#   enabled: true
+#   deployment:
+#     replicas: 2
+# gateway:
+#   enabled: true
+#   replicas: 2
+#   cacheTTL: 30s
+# networkPolicy:
+#   enabled: true
+
+# ---------------------------------------------------------------------------
+# Sign-in (Keycloak is the default IdP)
+# ---------------------------------------------------------------------------
+# keycloak:
+#   enabled: true
+#   realm: tetrix
+#   owner:
+#     enabled: true
+#     autoProvision: true
+
+# ---------------------------------------------------------------------------
+# Bundled storage — disable and fill external* to bring your own
+# ---------------------------------------------------------------------------
+# postgres:
+#   enabled: true
+#   persistence:
+#     size: 20Gi
+# neo4j:
+#   enabled: true
+#   persistence:
+#     size: 20Gi
+# meilisearch:
+#   enabled: true
+#   persistence:
+#     size: 10Gi
+# minio:
+#   enabled: true
+#   persistence:
+#     size: 50Gi
+#
+# externalPostgres:
+#   host: ""
+#   port: 5432
+#   database: tetrixaidb
+#   user: tetrix
+#   sslMode: prefer
+# externalNeo4j:
+#   uri: ""
+#   username: neo4j
+#   database: neo4j
+# externalMeilisearch:
+#   host: ""
+#   indexName: tetrix
+# externalMinio:
+#   endpoint: ""
+#   useSSL: false
+#   bucket: tetrix
+
+# ---------------------------------------------------------------------------
+# Embedding
+# ---------------------------------------------------------------------------
+# embedding:
+#   provider: openai
+#   model: text-embedding-3-large
+#   dimensions: 1024
+
+# ---------------------------------------------------------------------------
+# Licensing, admin, updater
+# ---------------------------------------------------------------------------
+# licensing:
+#   totalSeats: 10
+#   inviteEmail: true
+# adminApi:
+#   enabled: true
+#   replicas: 2
+#   licensing:
+#     replicas: 1
+#   updater:
+#     enabled: true
+#     cooldownSeconds: 900
+#     registryBroker:
+#       enabled: true                     # false together with global.imageOrigin=""
+
+# ---------------------------------------------------------------------------
+# Collectors (on by default) and Explore (stays off until a key is set)
+# ---------------------------------------------------------------------------
+# collectors:
+#   enabled: true
+#   api:
+#     replicas: 2
+#   mcp:
+#     replicas: 2
+#   worker:
+#     replicas: 2
+#   healthcheck:
+#     enabled: false
+#   hitl:
+#     enabled: false
+#   identityConsumer:
+#     enabled: false
+#   webhooks:
+#     enabled: false
+#   relay:
+#     enabled: false
+#   vault:
+#     addr: ""                             # set only for an external vault
+# explore:
+#   provider: anthropic
+#   model: claude-haiku-4-5-20251001
+#   rateLimitPerHour: 60
+
+# ---------------------------------------------------------------------------
+# Vault, frontend, audit, scheduling
+# ---------------------------------------------------------------------------
+# vault:
+#   enabled: true
+# frontend:
+#   enabled: true
+#   replicas: 2
+# auditLogs:
+#   enabled: true
+#   retentionDays: 365
+# podDisruptionBudget:
+#   enabled: false
+# serviceAccount:
+#   create: true
+# nodeSelector: {}
+# tolerations: []
+# affinity: {}
+
+# ---------------------------------------------------------------------------
+# Secrets — prefer --set-file; never commit tokens
+# When secrets.existingSecret is set, the chart does not auto-generate passwords.
+# Required keys: see HELM.md Table 1.8-G (includes LICENSE_TOKEN, LICENSE_PUBLIC_KEYS).
+# ---------------------------------------------------------------------------
+secrets:
+  licenseToken: ""
+  # licensePublicKeys: ""
+  # existingSecret: ""
+  # openaiApiKey: ""
+  # exploreLlmApiKey: ""
+  # collectorsControlPlaneDsn: ""          # required if postgres.enabled=false and collectors stay on
+  # collectorsVaultToken: ""

@@ -1,5 +1,17 @@
 # Minimal Helm values for Tetrix Enterprise.
 #
+# Parameter groups (see HELM.md and values-reference.yaml for the full catalog):
+#   global.*          image origin / pull secrets / storage class
+#   ingress.*         hostname, TLS (cert-manager or existingSecret), publicPort
+#   daemon.oidcLoopbackProxy  localhost / port-forward evaluation only
+#   keycloak.*        bundled sign-in
+#   postgres/neo4j/meilisearch/minio + external*   bundled vs bring-your-own DBs
+#   embedding.*       OpenAI / ollama / none
+#   secrets.*         licenseToken, existingSecret, passwords (auto-gen if omitted)
+#   collectors.*      default-on; healthcheck/hitl/identityConsumer/webhooks/relay are opt-in
+#   explore.*         disabled until secrets.exploreLlmApiKey is set
+#   vault / frontend / auditLogs / adminApi.updater
+#
 # The chart is an OCI artifact — you do not need a GitHub clone:
 #   helm upgrade --install tetrix \
 #     oci://registry-1.docker.io/deskree/tetrixaidb-chart \
@@ -10,6 +22,7 @@
 #     --set-file secrets.licenseToken=./license.jwt
 #
 # Full defaults: helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41
+# Customer parameter catalog: ../HELM.md
 
 ingress:
   host: tetrix.example.com
@@ -27,9 +40,12 @@ secrets:
   # openaiApiKey: ""
 
 # Evaluation without a license token, air-gapped, or your own mirror.
-# First-party images then pull from Docker Hub instead of registry.deskree.com.
+# First-party deskree/* images on Docker Hub are private — attach a pull secret
+# or pods stay ImagePullBackOff.
 # global:
 #   imageOrigin: ""
+#   imagePullSecrets:
+#     - name: your-dockerhub-secret
 # adminApi:
 #   updater:
 #     registryBroker:
