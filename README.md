@@ -83,7 +83,7 @@ repository. SHA-256 is also in the [v0.8.41 release notes](https://github.com/de
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 0.8.41 --sha256 25fbdd5d28ac028e898ece9042e014a63df68db58e0a7ca4971182de805214a6 ~/tetrix-docker
+  | bash -s -- --version 0.8.41 --sha256 b84f84df8065014f5d09c541f7fdb0587bda657758dcf7e317311f2b1c9be966 ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 

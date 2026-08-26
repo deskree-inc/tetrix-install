@@ -96,11 +96,15 @@ if [ "$MODE" = "release" ]; then
   # The download is untrusted input; install-release.sh is what verifies and
   # extracts it. This script never extracts a tar itself in release mode.
   installer=""
+  self_dir=""
+  if [ "${#BASH_SOURCE[@]}" -gt 0 ] && [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  fi
   for candidate in \
-    "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/install-release.sh" \
+    ${self_dir:+"${self_dir}/install-release.sh"} \
     "${DEST}/scripts/install-release.sh"
   do
-    [ -x "$candidate" ] && { installer="$candidate"; break; }
+    [ -n "$candidate" ] && [ -x "$candidate" ] && { installer="$candidate"; break; }
   done
   # curl | bash has no sibling script — fetch the verifier from this same repo.
   if [ -z "$installer" ]; then
