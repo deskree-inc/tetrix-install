@@ -91,7 +91,9 @@ if [ "$MODE" = "release" ]; then
   url="https://github.com/${REPO}/releases/download/v${VERSION}/deploy-docker-${VERSION}.tgz"
 
   echo "Downloading ${url}..."
-  curl -fsSL --connect-timeout 15 --max-time 600 "$url" -o "$bundle"
+  curl -fsSL --connect-timeout 15 --max-time 600 \
+    -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+    "$url" -o "$bundle"
 
   # The download is untrusted input; install-release.sh is what verifies and
   # extracts it. This script never extracts a tar itself in release mode.
