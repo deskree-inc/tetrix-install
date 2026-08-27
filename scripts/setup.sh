@@ -411,7 +411,7 @@ TETRIX_HOST="$(get_env_key TETRIX_HOST)"
 TETRIX_HOST="${TETRIX_HOST:-tetrix.local}"
 TETRIX_IMAGE_TAG="$(get_env_key TETRIX_IMAGE_TAG)"
 # Match docker-compose.yml default (do not fall back to :latest).
-TETRIX_IMAGE_TAG="${TETRIX_IMAGE_TAG:-sha-7dd9f22}"
+TETRIX_IMAGE_TAG="${TETRIX_IMAGE_TAG:-sha-44b61f9}"
 KEYCLOAK_OWNER_EMAIL="$(get_env_key KEYCLOAK_OWNER_EMAIL)"
 AIDB_USERNAME="$(get_env_key AIDB_USERNAME)"
 
@@ -527,6 +527,33 @@ if ! docker info >/dev/null 2>&1; then
   echo "Docker is not running. Start Docker, then run: docker compose up -d"
   exit 1
 fi
+
+# Ubuntu docker.io 29 ships the engine only. Without docker-compose-v2,
+# `docker compose` is not a command and a cloud `pull --quiet` becomes
+# `docker --quiet` (unknown global flag) — tetrix_registry_pull_failed.
+ensure_compose_plugin() {
+  if docker compose version >/dev/null 2>&1; then
+    echo "docker compose plugin is present"
+    return 0
+  fi
+  command -v apt-get >/dev/null 2>&1 || {
+    echo "ERROR: docker compose is not a command and apt-get is not available." >&2
+    echo "Install Docker Compose v2.24+ (plugin), then re-run." >&2
+    exit 1
+  }
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y --no-install-recommends docker-compose-v2 || {
+    echo "ERROR: failed to install docker-compose-v2" >&2
+    exit 1
+  }
+  docker compose version >/dev/null 2>&1 || {
+    echo "ERROR: docker compose is still missing after installing docker-compose-v2" >&2
+    exit 1
+  }
+  echo "installed docker-compose-v2"
+}
+ensure_compose_plugin
 
 # Registry credential BEFORE the pull (ADR-0024). No-ops when TETRIX_IMAGE_ORIGIN
 # is empty, so a Docker Hub install is unaffected. Not fatal on failure: the

@@ -106,6 +106,20 @@ if [ "${MODE:-dev}" = "cloud" ]; then
   command -v docker >/dev/null 2>&1 || cloud_die tetrix_registry_auth_failed \
     "docker is not on PATH" 2
 
+  # Ubuntu docker.io 29 has no compose plugin. `compose.sh pull --quiet` then
+  # becomes `docker --quiet` (sangam-class tetrix_registry_pull_failed).
+  if ! docker compose version >/dev/null 2>&1; then
+    command -v apt-get >/dev/null 2>&1 || cloud_die tetrix_registry_pull_failed \
+      "docker compose is not a command and apt-get is not available" 1
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends docker-compose-v2 \
+      || cloud_die tetrix_registry_pull_failed "failed to install docker-compose-v2" 1
+    docker compose version >/dev/null 2>&1 \
+      || cloud_die tetrix_registry_pull_failed \
+        "docker compose is still missing after installing docker-compose-v2" 1
+  fi
+
   # Preconditions all hold; only now is the tmpfs credential surface created.
   install -d -m 0700 "$DOCKER_CONFIG"
 
@@ -128,7 +142,7 @@ if [ "${MODE:-dev}" = "cloud" ]; then
     # Digest pulls only: COMPOSE_FILE carries docker-compose.release.yml, so every
     # image resolved here is an immutable sha256 reference.
     trap 'cloud_cleanup' EXIT
-    if ! bash "${ROOT}/scripts/compose.sh" pull --quiet; then
+    if ! docker compose pull; then
       printf '%s\n' tetrix_registry_pull_failed >&2
       echo "ERROR: pulling the pinned release images failed" >&2
       exit 1
