@@ -230,6 +230,7 @@ docker compose up -d --remove-orphans
 | License paste fails with `unknown_kid` | Re-run `./scripts/setup.sh`, recreate `licensing`, then re-paste |
 | Setup fails fetching ops keys | Need network to `ops.deskree.com` |
 | Intel / amd64 host | Set `FRONTEND_PLATFORM=linux/amd64` and `COLLECTORS_PLATFORM=linux/amd64` |
+| `unknown flag: --quiet` / `docker compose` not a command | Install Compose v2 (`docker-compose-v2` on Ubuntu). `setup.sh` installs the plugin when `apt-get` is present. Do not pass `--quiet` to `docker compose pull`. |
 
 Paste a real Deskree-issued license token in the SPA after sign-in (or set
 `LICENSE_TOKEN` in `.env` and recreate `licensing`).
