@@ -1111,10 +1111,9 @@ services:
   # never opens an SDK client.
   #
   # ⚠️ PRECONDITION before `--profile healthcheck`: COLLECTORS_IMAGE_TAG must be an image that
-  # contains collectors#601 (`be07342`). The chart pin is now `sha-6266cca` (after #601).
-  # The Compose default below is still `0.18.0`, which PREDATES it — set
-  # COLLECTORS_IMAGE_TAG in .env to a tag at or after be07342 before
-  # `--profile healthcheck`. Also: runtime/vault-read.env is `required: false` below — an existing
+  # contains collectors#601 (`be07342`). The chart pin and Compose fallback are
+  # `sha-6266cca` (after #601). A leftover `.env` pin older than be07342 will
+  # still fail this profile. Also: runtime/vault-read.env is `required: false` below — an existing
   # project whose vault-init already ran will NOT rewrite it; `docker compose run --rm vault-init`
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
