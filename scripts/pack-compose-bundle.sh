@@ -5,7 +5,7 @@
 # Cloud guests do not clone this repo and do not extract this tarball: module
 # 1.0.10 pulls registry.deskree.com/deskree/tetrix-deploy-docker@$RELEASE_DIGEST
 # (helm-packed, includes install-cloud-units.sh). The version/tag this script
-# stamps is what helm finalize may approve into release_catalog.
+# stamps is what Deskree Ops may approve (cron or Support › Releases), not helm.
 #
 # This script never calls ops ingest/finalize and never prints secrets.
 set -euo pipefail
@@ -143,10 +143,10 @@ doc = {
     "bundle": "${BUNDLE_NAME}",
     "bundle_sha256": "${BUNDLE_SHA256}",
     "catalog_contract": (
-        "ops POST /api/internal/cloud/releases/finalize is the only sanctioned "
-        "approve. Cloud release_catalog is a second store after that. This repo "
-        "has no ingest/finalize secrets. Helm-only tags without this GitHub "
-        "Release must not be finalized or stamped."
+        "ops cron /api/cron/approve-public-install and Support > Releases > "
+        "Approve are the sanctioned approve. Cloud release_catalog is a second "
+        "store after that. This repo has no ingest/finalize secrets. Helm-only "
+        "tags without this GitHub Release must not be finalized or stamped."
     ),
 }
 json.dump(doc, open(sys.argv[1], "w", encoding="utf-8"), indent=2)
