@@ -4,7 +4,17 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Current release: **0.8.41**.
+Current release: **0.8.41**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.41);
+only public tag as of 2026-08-28). `main` can be ahead of that tag (leftover-class
+pins + compose-v2 landed in [#2](https://github.com/deskree-inc/tetrix-install/pull/2)
+and are **not** a public release until VERSION is bumped and `vX.Y.Z` is tagged).
+
+Cloud first-provision (`release_catalog`) may only approve a version that exists
+as a **published GitHub Release in this repository**. Helm chart tags this repo
+has not released (for example helm `v0.8.54`) are not catalog rows. Approval is
+still Deskree Ops `releases:finalize` — this public repo has no ingest/finalize
+secrets. Cutting a new public tag + Release is what makes a new lock eligible.
 
 ---
 

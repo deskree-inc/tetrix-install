@@ -1,0 +1,30 @@
+name: pr-checks
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "VERSION"
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  pack-and-pins:
+    name: Pack self-test + leftover pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack self-test
+        run: |
+          set -euo pipefail
+          chmod +x scripts/pack-compose-bundle.sh
+          scripts/pack-compose-bundle.sh --self-test
+      - name: Leftover-class published pins
+        run: |
+          set -euo pipefail
+          chmod +x scripts/assert-published-pins.sh
+          scripts/assert-published-pins.sh
