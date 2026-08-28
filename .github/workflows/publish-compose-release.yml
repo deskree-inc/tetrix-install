@@ -1,0 +1,118 @@
+# Pack the public Compose twin and attach it to this repository's GitHub Release.
+#
+# WHY THIS EXISTS. Cloud release_catalog must approve a tetrix-install PUBLIC
+# version, not a helm-only tag. This repo is the customer Compose twin and
+# currently has no Actions secrets (no OPS_RELEASE_INGEST_TOKEN, no
+# OPS_RELEASE_FINALIZE_TOKEN). So this workflow can only emit the bytes of
+# record: deploy-docker-<version>.tgz + public-release.json.
+#
+# WHAT APPROVE STILL IS. Deskree Ops POST /api/internal/cloud/releases/finalize
+# (helm finalize-ops-release.yml) remains the only sanctioned approve. After
+# that, Cloud release_catalog is a second store. Do not hand-INSERT. Do not
+# remint. This job never presents a bearer.
+#
+# WHAT A NEW LOCK NEEDS. Bump VERSION, tag vX.Y.Z, publish a GitHub Release
+# on this repo (so download.sh has a checksummed asset). Then helm finalize
+# of THAT version — not helm v0.8.54 unless this repo also published v0.8.54.
+# main can be ahead of the latest tag; --dev-main is unversioned.
+name: Publish compose release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing tag to pack (with or without a leading v). Does not create a tag."
+        required: true
+        type: string
+      replace_existing_asset:
+        description: "Replace deploy-docker-<version>.tgz if it already exists (rewrites the published checksum)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  pack-and-upload:
+    name: Pack compose bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "release" ]; then
+            VERSION="${RELEASE_TAG#v}"
+          else
+            VERSION="${INPUT_VERSION#v}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::version is required"; exit 1
+          fi
+          {
+            echo "version=${VERSION}"
+            echo "tag=v${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.tag }}
+
+      - name: Pack the compose bundle
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/pack-compose-bundle.sh
+          scripts/pack-compose-bundle.sh --version "$VERSION" --output-dir dist/release
+          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [ "$FILE_VERSION" != "$VERSION" ]; then
+            echo "::error::VERSION file is ${FILE_VERSION}, tag is ${VERSION}. They must match."
+            exit 1
+          fi
+
+      - name: Refuse to rewrite a published checksum
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.replace_existing_asset }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          ASSET="deploy-docker-${VERSION}.tgz"
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+            echo "::error::${TAG} already has ${ASSET}. Refusing to rewrite the published checksum. Re-run with replace_existing_asset=true only if that is intentional."
+            exit 1
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          VERSION: ${{ steps.target.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" \
+            "dist/release/deploy-docker-${VERSION}.tgz" \
+            dist/release/public-release.json \
+            --clobber
+          {
+            echo "### Public compose release"
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Version | \`${VERSION}\` |"
+            echo "| Tag | \`${TAG}\` |"
+            echo "| Bundle sha256 | \`$(jq -r .bundle_sha256 dist/release/public-release.json)\` |"
+            echo
+            echo "Catalog approve is still ops \`releases:finalize\` of **this** version."
+            echo "This job did not ingest, finalize, or write \`release_catalog\`."
+          } >> "$GITHUB_STEP_SUMMARY"
