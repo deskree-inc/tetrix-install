@@ -11,9 +11,11 @@ chart 0.8.56. The Helm OCI chart remains **0.8.54** (latest published chart).
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
-has not released (for example helm `v0.8.54`) are not catalog rows. Approval is
-still Deskree Ops `releases:finalize` — this public repo has no ingest/finalize
-secrets. Cutting a new public tag + Release is what makes a new lock eligible.
+has not released (for example helm `v0.8.54`) are not catalog rows. Approval
+lives in **Deskree Ops**: auto-approve (`/api/cron/approve-public-install`) or
+Support › Releases › Approve. This public repo has no ingest/finalize secrets
+and does not call helm `OPS_RELEASE_FINALIZE_TOKEN`. Cutting a new public tag
++ Release is what makes a new lock eligible.
 
 ---
 

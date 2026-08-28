@@ -6,15 +6,18 @@
 # OPS_RELEASE_FINALIZE_TOKEN). So this workflow can only emit the bytes of
 # record: deploy-docker-<version>.tgz + public-release.json.
 #
-# WHAT APPROVE STILL IS. Deskree Ops POST /api/internal/cloud/releases/finalize
-# (helm finalize-ops-release.yml) remains the only sanctioned approve. After
-# that, Cloud release_catalog is a second store. Do not hand-INSERT. Do not
-# remint. This job never presents a bearer.
+# WHAT APPROVE IS. Deskree Ops auto-approves the newest public Release here
+# (POST /api/cron/approve-public-install) or an ops admin clicks Approve on
+# /support/releases. Both call the same finalize decision inside ops — not
+# helm finalize-ops-release.yml, not OPS_RELEASE_FINALIZE_TOKEN. After that,
+# Cloud release_catalog is a second store. Do not hand-INSERT. Do not remint.
+# This job never presents a bearer.
 #
 # WHAT A NEW LOCK NEEDS. Bump VERSION, tag vX.Y.Z, publish a GitHub Release
-# on this repo (so download.sh has a checksummed asset). Then helm finalize
-# of THAT version — not helm v0.8.54 unless this repo also published v0.8.54.
-# main can be ahead of the latest tag; --dev-main is unversioned.
+# on this repo (so download.sh has a checksummed asset). Ops then approves
+# THAT version once the ingest draft + installer image exist — not helm
+# v0.8.54 unless this repo also published v0.8.54. main can be ahead of the
+# latest tag; --dev-main is unversioned.
 name: Publish compose release
 
 on:
@@ -113,6 +116,6 @@ jobs:
             echo "| Tag | \`${TAG}\` |"
             echo "| Bundle sha256 | \`$(jq -r .bundle_sha256 dist/release/public-release.json)\` |"
             echo
-            echo "Catalog approve is still ops \`releases:finalize\` of **this** version."
+            echo "Catalog approve is ops auto-approve / Support › Releases of **this** version."
             echo "This job did not ingest, finalize, or write \`release_catalog\`."
           } >> "$GITHUB_STEP_SUMMARY"
