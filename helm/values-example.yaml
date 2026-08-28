@@ -15,13 +15,13 @@
 # The chart is an OCI artifact — you do not need a GitHub clone:
 #   helm upgrade --install tetrix \
 #     oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-#     --version 0.8.41 \
+#     --version 0.8.54 \
 #     --namespace tetrix --create-namespace \
 #     --timeout 25m --wait=false \
 #     -f values-example.yaml \
 #     --set-file secrets.licenseToken=./license.jwt
 #
-# Full defaults: helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41
+# Full defaults: helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54
 # Customer parameter catalog: ../HELM.md
 
 ingress:

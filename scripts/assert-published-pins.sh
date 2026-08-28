@@ -3,9 +3,15 @@
 #
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
-# (also unpublished). Leftover-class published linux/amd64 pins:
-#   licensing/updater  sha-a9ccf90  (child sha256:d6eb42a4… — do not republish 8b99820c)
-#   daemon/remote      sha-44b61f9
+# (also unpublished). Current pins match Helm 0.8.56 (latest published sha-):
+#   daemon/remote      sha-46c3aed
+#   licensing/updater  sha-a437f10  (do not republish 8b99820c)
+#   collectors         sha-6266cca
+#   frontend           sha-a50f6af
+#   iam                sha-4186381
+#   admin-api          sha-a437f10
+#   audit-logs         sha-a3c876e
+#   gateway            sha-b51cd15
 #
 # Ubuntu docker.io 29 has no compose plugin. `compose.sh pull --quiet` is parsed
 # as `docker --quiet` → tetrix_registry_pull_failed. Cloud guests get compose-v2
@@ -43,16 +49,33 @@ for name, text, forbidden in (
         if tag in text:
             errors.append(f"{name} still pins unpublished {tag}")
 
-if "LICENSING_IMAGE_TAG=sha-a9ccf90" not in env:
-    errors.append(".env.example must pin LICENSING_IMAGE_TAG=sha-a9ccf90 (leftover-class)")
-if "UPDATER_IMAGE_TAG=sha-a9ccf90" not in env:
-    errors.append(".env.example must pin UPDATER_IMAGE_TAG=sha-a9ccf90")
-if "TETRIX_IMAGE_TAG=sha-44b61f9" not in env:
-    errors.append(".env.example must pin TETRIX_IMAGE_TAG=sha-44b61f9")
-if ":-sha-a9ccf90}" not in compose:
-    errors.append("docker-compose.yml must default licensing/updater to sha-a9ccf90")
-if ":-sha-44b61f9}" not in compose:
-    errors.append("docker-compose.yml must default daemon/remote to sha-44b61f9")
+required_env = (
+    ("TETRIX_IMAGE_TAG=sha-46c3aed", "TETRIX_IMAGE_TAG"),
+    ("KEYCLOAK_IMAGE_TAG=sha-4186381", "KEYCLOAK_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-a50f6af", "FRONTEND_IMAGE_TAG"),
+    ("AUDIT_LOGS_IMAGE_TAG=sha-a3c876e", "AUDIT_LOGS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-6266cca", "COLLECTORS_IMAGE_TAG"),
+    ("ADMIN_API_IMAGE_TAG=sha-a437f10", "ADMIN_API_IMAGE_TAG"),
+    ("LICENSING_IMAGE_TAG=sha-a437f10", "LICENSING_IMAGE_TAG"),
+    ("UPDATER_IMAGE_TAG=sha-a437f10", "UPDATER_IMAGE_TAG"),
+    ("GATEWAY_IMAGE_TAG=sha-b51cd15", "GATEWAY_IMAGE_TAG"),
+)
+for needle, label in required_env:
+    if needle not in env:
+        errors.append(f".env.example must pin {needle} (Helm 0.8.56)")
+
+required_compose = (
+    (":-sha-46c3aed}", "daemon/remote"),
+    (":-sha-4186381}", "iam"),
+    (":-sha-a50f6af}", "frontend"),
+    (":-sha-a3c876e}", "audit-logs"),
+    (":-sha-6266cca}", "collectors"),
+    (":-sha-a437f10}", "admin-api/licensing/updater"),
+    (":-sha-b51cd15}", "gateway"),
+)
+for needle, label in required_compose:
+    if needle not in compose:
+        errors.append(f"docker-compose.yml must default {label} to {needle}")
 
 login_active = uncomment(login)
 if "pull --quiet" in login_active or "pull -q" in login_active:
@@ -74,6 +97,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins leftover-class published tags and does not pass --quiet"
+  ok "public compose pins match Helm 0.8.56 published tags and does not pass --quiet"
 fi
 exit "$fail"

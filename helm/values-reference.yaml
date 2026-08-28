@@ -1,10 +1,10 @@
-# Customer-safe Helm values skeleton for Tetrix Enterprise 0.8.41.
+# Customer-safe Helm values skeleton for Tetrix Enterprise 0.8.54 (latest published chart).
 # Commented keys only — no hostnames, no secrets, no cluster names.
 #
 # Install:
 #   helm upgrade --install tetrix \
 #     oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-#     --version 0.8.41 \
+#     --version 0.8.54 \
 #     --namespace tetrix --create-namespace \
 #     --timeout 25m --wait=false \
 #     -f values-reference.yaml \
@@ -13,7 +13,7 @@
 #     --set-file secrets.licenseToken=./license.jwt
 #
 # Full machine-readable catalog:
-#   helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41
+#   helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54
 # Curated parameter tables: ../HELM.md
 
 # ---------------------------------------------------------------------------

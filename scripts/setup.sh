@@ -411,7 +411,7 @@ TETRIX_HOST="$(get_env_key TETRIX_HOST)"
 TETRIX_HOST="${TETRIX_HOST:-tetrix.local}"
 TETRIX_IMAGE_TAG="$(get_env_key TETRIX_IMAGE_TAG)"
 # Match docker-compose.yml default (do not fall back to :latest).
-TETRIX_IMAGE_TAG="${TETRIX_IMAGE_TAG:-sha-44b61f9}"
+TETRIX_IMAGE_TAG="${TETRIX_IMAGE_TAG:-sha-46c3aed}"
 KEYCLOAK_OWNER_EMAIL="$(get_env_key KEYCLOAK_OWNER_EMAIL)"
 AIDB_USERNAME="$(get_env_key AIDB_USERNAME)"
 
