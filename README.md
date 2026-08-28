@@ -4,17 +4,18 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Current release: **0.8.41**
+Latest published release: **0.8.41**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.41);
-only public tag as of 2026-08-28). `main` can be ahead of that tag (leftover-class
-pins + compose-v2 landed in [#2](https://github.com/deskree-inc/tetrix-install/pull/2)
-and are **not** a public release until VERSION is bumped and `vX.Y.Z` is tagged).
+only public tag as of 2026-08-28). This tree's `VERSION` is **0.8.56** and pins
+the same first-party `sha-` tags as chart 0.8.56. That is **not** a public
+release until `v0.8.56` is tagged.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
-has not released (for example helm `v0.8.54`) are not catalog rows. Approval is
-still Deskree Ops `releases:finalize` — this public repo has no ingest/finalize
-secrets. Cutting a new public tag + Release is what makes a new lock eligible.
+has not released (for example helm `v0.8.54` / in-tree `0.8.56`) are not catalog
+rows. Approval is still Deskree Ops `releases:finalize` — this public repo has
+no ingest/finalize secrets. Cutting a new public tag + Release is what makes a
+new lock eligible.
 
 ---
 
@@ -47,7 +48,7 @@ TLS (cert-manager ClusterIssuer **or** a pre-created TLS secret).
 ```bash
 helm upgrade --install tetrix \
   oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-  --version 0.8.41 \
+  --version 0.8.54 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -64,7 +65,7 @@ A starter values file is in [`helm/values-example.yaml`](helm/values-example.yam
 A commented customer-safe skeleton is [`helm/values-reference.yaml`](helm/values-reference.yaml).
 The curated parameter catalog (every typical key, Table 1.8-G secret keys, unlicensed
 path, external DBs, opt-in collectors) is **[`HELM.md`](HELM.md)**.
-You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41`
+You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54`
 for the machine-readable full catalog.
 
 **Without a license token** (Docker Hub / air-gapped / your own mirror).
@@ -73,7 +74,7 @@ secret first or pods stay in `ImagePullBackOff`:
 
 ```bash
 helm upgrade --install tetrix \
-  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41 \
+  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \

@@ -6,7 +6,7 @@ The chart is an **OCI artifact**. You do **not** clone a chart source tree
 ```bash
 helm upgrade --install tetrix \
   oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-  --version 0.8.41 \
+  --version 0.8.54 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -17,7 +17,7 @@ helm upgrade --install tetrix \
 The machine-readable full catalog (every key the chart accepts) is:
 
 ```bash
-helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41
+helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54
 ```
 
 This page is the curated customer catalog: every parameter you typically set,
@@ -72,7 +72,7 @@ Both settings move together. First-party `deskree/*` images on Docker Hub are
 
 ```bash
 helm upgrade --install tetrix \
-  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.41 \
+  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
