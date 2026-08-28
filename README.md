@@ -4,18 +4,16 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **0.8.41**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.41);
-only public tag as of 2026-08-28). This tree's `VERSION` is **0.8.56** and pins
-the same first-party `sha-` tags as chart 0.8.56. That is **not** a public
-release until `v0.8.56` is tagged.
+Latest published release: **0.8.56**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)).
+This tree's `VERSION` is **0.8.56** and pins the same first-party `sha-` tags as
+chart 0.8.56. The Helm OCI chart remains **0.8.54** (latest published chart).
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
-has not released (for example helm `v0.8.54` / in-tree `0.8.56`) are not catalog
-rows. Approval is still Deskree Ops `releases:finalize` — this public repo has
-no ingest/finalize secrets. Cutting a new public tag + Release is what makes a
-new lock eligible.
+has not released (for example helm `v0.8.54`) are not catalog rows. Approval is
+still Deskree Ops `releases:finalize` — this public repo has no ingest/finalize
+secrets. Cutting a new public tag + Release is what makes a new lock eligible.
 
 ---
 
@@ -96,12 +94,12 @@ Requires Docker + Compose v2.24+, `openssl`, `curl`, and `python3`.
 ### 1 — Get these files
 
 **Production (recommended):** download the checksummed release asset from this
-repository. SHA-256 is also in the [v0.8.41 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.41)
-(`compose.bundle_sha256`):
+repository. SHA-256 is also in the [v0.8.56 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)
+(`bundle_sha256` in `public-release.json`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 0.8.41 --sha256 b84f84df8065014f5d09c541f7fdb0587bda657758dcf7e317311f2b1c9be966 ~/tetrix-docker
+  | bash -s -- --version 0.8.56 --sha256 b9243c5edebbef49705d12e0264cbf26444b23c7ac8bd102a6cb9ac5faecb0c4 ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 

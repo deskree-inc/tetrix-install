@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./scripts/download.sh --dev-main /opt/tetrix
-#   ./scripts/download.sh --version 0.8.41 --sha256 "$COMPOSE_BUNDLE_SHA256" /opt/tetrix
+#   ./scripts/download.sh --version 0.8.56 --sha256 "$COMPOSE_BUNDLE_SHA256" /opt/tetrix
 #
 # This public repo's root IS the compose bundle. Release assets are named
 # deploy-docker-<version>.tgz on deskree-inc/tetrix-install.
