@@ -6,9 +6,9 @@ Deskree GitHub repository.
 
 Latest published release: **0.8.56**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)).
-This tree's `VERSION` is **0.8.63** (Cloud guest: Vault wait does not fail-fast
-on Docker `restarting`; still fail-fast on exited/dead). First-party `sha-` pins stay at chart 0.8.56. The Helm
-OCI chart remains **0.8.54** (latest published chart). A public `v0.8.63`
+This tree's `VERSION` is **0.8.64** (Cloud guest: apply VAULT_LOCAL_CONFIG
+without docker-entrypoint.sh; /bin/sh wrapper + vault server -config). First-party `sha-` pins stay at chart 0.8.56. The Helm
+OCI chart remains **0.8.54** (latest published chart). A public `v0.8.64`
 Release is required before ops can finalize that lock.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
