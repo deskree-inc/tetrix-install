@@ -6,9 +6,9 @@ Deskree GitHub repository.
 
 Latest published release: **0.8.56**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)).
-This tree's `VERSION` is **0.8.61** (Cloud guest: Vault `entrypoint: vault`
-so Docker 29 does not exec `docker-entrypoint.sh` / dumb-init). First-party `sha-` pins stay at chart 0.8.56. The Helm
-OCI chart remains **0.8.54** (latest published chart). A public `v0.8.61`
+This tree's `VERSION` is **0.8.62** (Cloud guest: Vault under Docker `init: true` +
+`/bin/vault`, not PID 1; pin linux/amd64). First-party `sha-` pins stay at chart 0.8.56. The Helm
+OCI chart remains **0.8.54** (latest published chart). A public `v0.8.62`
 Release is required before ops can finalize that lock.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
