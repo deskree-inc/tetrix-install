@@ -6,9 +6,9 @@ Deskree GitHub repository.
 
 Latest published release: **0.8.56**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)).
-This tree's `VERSION` is **0.8.58** (Cloud guest: last-four phase stamps +
-Vault listen wait). First-party `sha-` pins stay at chart 0.8.56. The Helm
-OCI chart remains **0.8.54** (latest published chart). A public `v0.8.58`
+This tree's `VERSION` is **0.8.59** (Cloud guest: Vault disable_mlock +
+gcpckms seal + deferred cloud-state.env). First-party `sha-` pins stay at chart 0.8.56. The Helm
+OCI chart remains **0.8.54** (latest published chart). A public `v0.8.59`
 Release is required before ops can finalize that lock.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
