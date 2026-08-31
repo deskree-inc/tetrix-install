@@ -6,12 +6,13 @@ Deskree GitHub repository.
 
 Latest published release: **0.8.56**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)).
-This tree's `VERSION` is **0.8.70** (Cloud guest: compose Vault wrapper
-stays PID 1, ignores SIGHUP, and runs `vault server -config` as a child —
-`miniohc31aug` still SIGSEGV'd exit 139 after the 0.8.65 exec-as-PID-1
-fix). First-party `sha-` pins stay at chart 0.8.56. The Helm
-OCI chart remains **0.8.54** (latest published chart). A public `v0.8.70`
-Release is required before ops can finalize that lock.
+This tree's `VERSION` is **0.8.71** (Cloud guest: compose Vault writes
+`VAULT_LOCAL_CONFIG` to `/tmp` only and `setsid`-isolates `vault server`
+so Docker/compose HUP cannot reach 1.21.4 — `vaulthup31aug` still
+`vault_exit=139` after 0.8.70 wrote `/vault/config`). First-party `sha-`
+pins stay at chart 0.8.56. The Helm OCI chart remains **0.8.54** (latest
+published chart). A public `v0.8.71` Release is required before ops can
+finalize that lock.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
