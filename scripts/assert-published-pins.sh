@@ -8,7 +8,7 @@
 #   licensing/updater  sha-a437f10  (do not republish 8b99820c)
 #   collectors         sha-6266cca
 #   frontend           sha-a50f6af
-#   iam                sha-4186381
+#   iam                sha-c137e29
 #   admin-api          sha-a437f10
 #   audit-logs         sha-a3c876e
 #   gateway            sha-b51cd15
@@ -51,7 +51,7 @@ for name, text, forbidden in (
 
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-46c3aed", "TETRIX_IMAGE_TAG"),
-    ("KEYCLOAK_IMAGE_TAG=sha-4186381", "KEYCLOAK_IMAGE_TAG"),
+    ("KEYCLOAK_IMAGE_TAG=sha-c137e29", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-a50f6af", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-a3c876e", "AUDIT_LOGS_IMAGE_TAG"),
     ("COLLECTORS_IMAGE_TAG=sha-6266cca", "COLLECTORS_IMAGE_TAG"),
@@ -66,7 +66,7 @@ for needle, label in required_env:
 
 required_compose = (
     (":-sha-46c3aed}", "daemon/remote"),
-    (":-sha-4186381}", "iam"),
+    (":-sha-c137e29}", "iam"),
     (":-sha-a50f6af}", "frontend"),
     (":-sha-a3c876e}", "audit-logs"),
     (":-sha-6266cca}", "collectors"),

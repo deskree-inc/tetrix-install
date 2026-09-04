@@ -285,7 +285,7 @@ services:
 
   # ── Keycloak (IdP) ──────────────────────────────────────────────────────────
   keycloak:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-4186381}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-c137e29}
     depends_on:
       postgres-ensure-keycloak:
         condition: service_completed_successfully
@@ -444,7 +444,7 @@ services:
     restart: "no"
 
   keycloak-owner-org-sync:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-4186381}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-c137e29}
     depends_on:
       keycloak-provision:
         condition: service_completed_successfully
@@ -578,7 +578,7 @@ services:
       # this whole value in docker-compose.override.yml.
       SYSTEM_HEALTH_TARGETS: >-
         [{"key":"identity","label":"Identity","urls":["http://keycloak:9000"],"path":"/auth/health/ready",
-           "declaredVersion":"${KEYCLOAK_IMAGE_TAG:-sha-4186381}"},
+           "declaredVersion":"${KEYCLOAK_IMAGE_TAG:-sha-c137e29}"},
          {"key":"knowledge","label":"Knowledge","urls":["http://daemon:9090"]},
          {"key":"graph-sync","label":"Graph Replica","urls":["http://remote:9091"]},
          {"key":"gateway","label":"Gateway","urls":["http://gateway:4181"]},
