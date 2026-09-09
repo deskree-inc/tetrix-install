@@ -256,6 +256,21 @@ services:
     restart: unless-stopped
 
   vault-init:
+    # Runs as ROOT by default, which is what Tetrix Cloud needs: there the whole
+    # stack runs as root out of /opt/tetrix, and this service's only job is to
+    # write runtime/vault*.env — files it chmod 600s itself.
+    #
+    # On a self-hosted Linux Docker Engine host that default is the problem:
+    # container root is host root, so those files land root:root 0600 on the bind
+    # mount and Compose — running as the invoking user — cannot read them back as
+    # env_file. collectors-api and collectors-worker then crash with
+    # "VAULT_ADDR and VAULT_TOKEN must be set", and a one-off chown does not hold
+    # because this service re-runs on every `up` and re-roots them.
+    #
+    # setup.sh writes TETRIX_UID/TETRIX_GID into .env in non-cloud mode only, so
+    # a self-hosted install lands the files as the operator and Cloud keeps the
+    # root behaviour it has always had. Do not hard-code 1000 here.
+    user: "${TETRIX_UID:-0}:${TETRIX_GID:-0}"
     image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
     depends_on:
       vault:

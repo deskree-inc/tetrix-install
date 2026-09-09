@@ -256,6 +256,27 @@ find "${bundle_dir}/scripts" -name '*.sh' -exec chmod 0755 {} + 2>/dev/null || t
 find "${bundle_dir}/chart-scripts" -name '*.sh' -exec chmod 0755 {} + 2>/dev/null || true
 find "${bundle_dir}/postgres/initdb" -name '*.sh' -exec chmod 0755 {} + 2>/dev/null || true
 
+# The umask 077 above is right for anything holding a credential, but it also
+# applies to the bundle's config and asset trees, which containers must read.
+# Several images de-escalate internally regardless of compose `user:` — the
+# postgres entrypoint execs gosu to uid 999, the daemon image sets USER tetrix —
+# so a 0700 directory or 0600 file is unreadable to the process that needs it.
+# On Docker Desktop bind mounts are uid-mapped and this never shows; on Linux
+# Docker Engine postgres restarts with
+# "ls: cannot open directory '/docker-entrypoint-initdb.d/': Permission denied"
+# and setup.sh reports the Keycloak provisioners never ran.
+#
+# Scoped ON PURPOSE to the directories the archive actually ships. It carries no
+# secrets: .env.example is a template, and .env, runtime/, certs/ and
+# .local-license-keys/ are all created later by setup.sh and are never touched
+# here. Do not widen this to `chmod -R a+rX "$bundle_dir"` — that would relax
+# whatever a future bundle happens to add.
+for _d in chart-scripts daemon frontend helm postgres scripts traefik; do
+  [ -e "${bundle_dir}/${_d}" ] || continue
+  chmod -R a+rX "${bundle_dir}/${_d}" 2>/dev/null || true
+done
+unset _d
+
 if [ -d "$DESTINATION" ]; then
   # Empty directory (checked above) — move the contents in, keeping the
   # caller's inode, ownership and any mount point.
