@@ -394,6 +394,15 @@ fi
 # step when an operator enables it.
 set_env_key COMPOSE_PROJECT_DIR "${ROOT}"
 
+# vault-init writes runtime/vault*.env through a bind mount. Container root is
+# host root on Linux, so without these it writes root:root 0600 files that
+# Compose cannot read back as env_file (collectors then crash on a missing
+# VAULT_TOKEN). Stamped in the dev/self-hosted branch ONLY — cloud mode runs the
+# stack as root and docker-compose.yml defaults these to 0:0, so Cloud keeps its
+# existing behaviour untouched.
+set_env_key TETRIX_UID "$(id -u)"
+set_env_key TETRIX_GID "$(id -g)"
+
 rm -f .env.bak
 fi  # end dev-only credential generation
 
