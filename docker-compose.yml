@@ -219,14 +219,33 @@ services:
         condition: service_completed_successfully
     user: "100:1000"
     environment:
+      # disable_mlock: this Vault runs as uid 100:1000 with SKIP_SETCAP=true, so the
+      # IPC_LOCK capability below is NOT effective — cap_add grants a capability only
+      # to root or to a binary carrying file capabilities, and SKIP_SETCAP disables
+      # exactly that setcap step. The process therefore falls back to the memlock
+      # ulimit. Docker Desktop's VM is unlimited, which is why this never bit there;
+      # Linux Docker Engine defaults to 8 MiB (`docker run --rm busybox sh -c
+      # 'ulimit -l'` prints 8192) and Vault exits a few hundred ms after "Started"
+      # with the mlock syscall message, leaving 127.0.0.1:8200 unanswered and every
+      # Vault-dependent service — vault-init, collectors-api, collectors-worker —
+      # waiting. The Helm chart sets this for the same image
+      # (templates/vault-statefulset.yaml) and the chart repo's compose twin has had
+      # it since chart 0.8.59. Do not remove it.
       VAULT_LOCAL_CONFIG: |
-        {"storage":{"file":{"path":"/vault/data"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}},"ui":false}
+        {"storage":{"file":{"path":"/vault/data"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}},"disable_mlock":true,"ui":false}
       SKIP_SETCAP: "true"
     command: ["server"]
     volumes:
       - vault-data:/vault/data
     cap_add:
       - IPC_LOCK
+    # Belt to disable_mlock's braces: should a future config ever drop
+    # disable_mlock, an unlimited memlock keeps the syscall available instead of
+    # reintroducing a silent restart loop.
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     healthcheck:
       # `vault status` exits 0 unsealed, 2 SEALED, 1 unreachable. Only 0 is
       # healthy: a sealed Vault answers its API and every secret on the box is
