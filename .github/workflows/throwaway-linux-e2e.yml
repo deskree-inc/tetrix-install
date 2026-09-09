@@ -154,8 +154,11 @@ jobs:
                   or (.State == "running" and (.Health != "" and .Health != "healthy"))
                 ) | "\(.Service) \(.State) health=\(.Health) exit=\(.ExitCode)" ] | .[]')
             n=$(printf '%s' "$bad" | grep -c . || true)
-            echo "t+$((SECONDS))s: ${n} container(s) not settled"
-            if [ "$n" -eq 0 ]; then healthy=true; break; fi
+            total=$(docker compose ps -aq | wc -l | tr -d ' ')
+            echo "t+$((SECONDS))s: ${total} containers, ${n} not settled"
+            # The default stack is 34 containers; fewer means pulls or creates failed,
+            # and an empty stack must never count as settled.
+            if [ "$n" -eq 0 ] && [ "$total" -ge 30 ]; then healthy=true; break; fi
             if [ "$SECONDS" -ge "$deadline" ]; then
               echo "gave up after 8 minutes; still unsettled:"; printf '%s\n' "$bad"; break
             fi
