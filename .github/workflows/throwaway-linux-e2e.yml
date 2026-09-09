@@ -122,7 +122,7 @@ jobs:
           # mint endpoint is explainable from the log alone.
           LICENSE_TOKEN="$(printf '%s' "$LICENSE_TOKEN" | tr -d '[:space:]' | sed -e "s/^['\"]*//" -e "s/['\"]*$//")"
           segs=$(printf '%s' "$LICENSE_TOKEN" | awk -F. '{print NF}')
-          if printf '%s' "$LICENSE_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'; then shape="JWT-shaped"; else shape="NOT JWT-shaped"; fi
+          if printf '%s' "$LICENSE_TOKEN" | grep -Eq '^tetrixlic\.v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'; then shape="tetrixlic.v1-shaped (ok)"; else shape="NOT tetrixlic.v1-shaped"; fi
           echo "license token: length=${#LICENSE_TOKEN} dot-segments=${segs} ${shape}"
           printf 'LICENSE_TOKEN=%s\n' "$LICENSE_TOKEN" > "$RUNNER_TEMP/tok.env"
           sed -i '/^LICENSE_TOKEN=/d' .env && cat "$RUNNER_TEMP/tok.env" >> .env && rm -f "$RUNNER_TEMP/tok.env"
