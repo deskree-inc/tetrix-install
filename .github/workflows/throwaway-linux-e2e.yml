@@ -93,8 +93,12 @@ jobs:
               | bash -s -- --version "$BUNDLE_VERSION" --sha256 "$BUNDLE_SHA256" ~/tetrix-docker
           else
             echo "--dev-main copy of ${BUNDLE_BRANCH} (unversioned; install-release.sh's permission fix does NOT run on this path)"
-            curl -fsSL "https://raw.githubusercontent.com/deskree-inc/tetrix-install/${BUNDLE_BRANCH}/scripts/download.sh" \
-              | TETRIX_DOCKER_BRANCH="$BUNDLE_BRANCH" bash -s -- --dev-main ~/tetrix-docker
+            # The branch's own download.sh, taken from a git clone rather than
+            # raw.githubusercontent.com: that CDN lags a push by up to five minutes
+            # and served a stale script to attempt 2 of run 34416568468.
+            git clone -q --depth 1 --branch "$BUNDLE_BRANCH" https://github.com/deskree-inc/tetrix-install.git "$RUNNER_TEMP/src"
+            echo "download.sh from commit $(git -C "$RUNNER_TEMP/src" rev-parse --short HEAD)"
+            TETRIX_DOCKER_BRANCH="$BUNDLE_BRANCH" bash "$RUNNER_TEMP/src/scripts/download.sh" --dev-main ~/tetrix-docker
           fi
           test -d ~/tetrix-docker || { echo "download did not produce ~/tetrix-docker"; exit 1; }
           echo "bundle VERSION file: $(cat ~/tetrix-docker/VERSION)"
