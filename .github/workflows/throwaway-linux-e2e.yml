@@ -45,9 +45,21 @@ on:
         required: false
         type: boolean
         default: false
+      path:
+        description: "compose = guide Part II on Docker Engine; helm = guide §1.1 evaluation on a fresh minikube (Linux)"
+        required: true
+        type: choice
+        options: [compose, helm]
+        default: compose
+      chart_version:
+        description: "helm only: published chart version to install"
+        required: false
+        default: "0.9.0"
+        type: string
 
 jobs:
   linux-e2e:
+    if: inputs.path == 'compose'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -279,3 +291,129 @@ jobs:
         run: |
           echo "setup.sh exit=${SETUP_RC:-none}  stack settled=${HEALTHY:-unknown}"
           [ "${SETUP_RC}" = "0" ] && [ "${HEALTHY}" = "true" ]
+
+  linux-k8s:
+    if: inputs.path == 'helm'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CHART_VERSION: ${{ inputs.chart_version }}
+    steps:
+      - name: Mask the license token
+        env:
+          LICENSE_TOKEN: ${{ inputs.license_token }}
+        run: echo "::add-mask::${LICENSE_TOKEN}"
+
+      - name: Host baseline
+        run: |
+          echo "kernel: $(uname -a)"; echo "arch: $(uname -m)"
+          echo "docker: $(docker --version)"; echo "kubectl: $(kubectl version --client -o json | jq -r .clientVersion.gitVersion)"; echo "helm: $(helm version --short)"
+          echo "cpus: $(nproc)  mem: $(free -m | awk '/^Mem:/{print $2" MiB"}')  disk: $(df -h / | awk 'NR==2{print $4" free"}')"
+
+      - name: Install minikube
+        run: |
+          curl -fsSL -o minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          sudo install minikube /usr/local/bin/minikube && rm -f minikube
+          minikube version --short
+
+      - name: minikube start (fresh cluster, docker driver)
+        run: |
+          minikube start --driver=docker --cpus=4 --memory=10240 --disk-size=40g --wait=false
+          kubectl get nodes -o wide
+
+      - name: Guide §1.1 — wait for DNS first (field test run 3)
+        run: |
+          date -u +%FT%TZ
+          kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=kube-dns --timeout=120s
+          date -u +%FT%TZ
+
+      - name: Guide §1.1 — helm pull + install (evaluation values, licence-backed pulls)
+        env:
+          LICENSE_TOKEN: ${{ inputs.license_token }}
+        run: |
+          set -eo pipefail
+          helm pull "oci://registry-1.docker.io/deskree/tetrixaidb-chart" --version "$CHART_VERSION" --untar
+          printf '%s' "$LICENSE_TOKEN" | tr -d '[:space:]' > ./license.jwt
+          echo "license.jwt: $(wc -c < ./license.jwt) bytes, $(awk -F. '{print NF}' ./license.jwt) dot-segments"
+          set +e
+          helm upgrade --install tetrix ./tetrixaidb-chart -n tetrix --create-namespace \
+            -f ./tetrixaidb-chart/values-local-fullstack.yaml \
+            -f ./tetrixaidb-chart/values-local-localhost.yaml \
+            --set-file secrets.licenseToken=./license.jwt \
+            --set global.imageOrigin=registry.deskree.com/ \
+            --set adminApi.updater.registryBroker.enabled=true \
+            --timeout 25m --wait=false
+          rc=$?; set -e
+          echo "helm exit=${rc}"; echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          rm -f ./license.jwt
+        id: helm
+
+      - name: Wait for the release (hooks + pods), up to 25 minutes
+        id: wait
+        if: always()
+        run: |
+          deadline=$((SECONDS + 1500)); settled=false
+          while :; do
+            status=$(helm status tetrix -n tetrix -o json 2>/dev/null | jq -r .info.status)
+            pods=$(kubectl -n tetrix get pods --no-headers 2>/dev/null)
+            total=$(printf '%s' "$pods" | grep -c . || true)
+            bad=$(printf '%s\n' "$pods" | awk '$3!="Running" && $3!="Completed" && $3!="Succeeded"' | grep -c . || true)
+            notready=$(printf '%s\n' "$pods" | awk '$3=="Running"{split($2,a,"/"); if(a[1]!=a[2]) print}' | grep -c . || true)
+            echo "t+${SECONDS}s: release=${status} pods=${total} not-running/completed=${bad} running-but-not-ready=${notready}"
+            if [ "$status" = "deployed" ] && [ "$total" -ge 15 ] && [ "$bad" -eq 0 ] && [ "$notready" -eq 0 ]; then settled=true; break; fi
+            case "$status" in failed) echo "release is failed"; break;; esac
+            [ "$SECONDS" -ge "$deadline" ] && { echo "gave up after 25 min"; break; }
+            sleep 20
+          done
+          echo "settled=${settled}" >> "$GITHUB_OUTPUT"
+
+      - name: Release, hooks, pods
+        if: always()
+        run: |
+          helm list -n tetrix; echo
+          kubectl -n tetrix get jobs -o wide 2>/dev/null; echo
+          kubectl -n tetrix get pods -o wide 2>/dev/null; echo
+          kubectl -n tetrix get events --sort-by=.lastTimestamp 2>/dev/null | tail -40
+
+      - name: Describe + logs of anything unhealthy
+        if: always()
+        run: |
+          for p in $(kubectl -n tetrix get pods --no-headers 2>/dev/null | awk '$3!="Running" && $3!="Completed" && $3!="Succeeded"{print $1}'); do
+            echo "::group::$p"; kubectl -n tetrix describe pod "$p" | tail -40; kubectl -n tetrix logs "$p" --all-containers --tail=60 2>&1 || true; echo "::endgroup::"
+          done
+          for j in $(kubectl -n tetrix get jobs --no-headers 2>/dev/null | awk '$2!~/^1\/1/{print $1}'); do
+            echo "::group::job $j"; kubectl -n tetrix logs "job/$j" --all-containers --tail=60 2>&1 || true; echo "::endgroup::"
+          done
+
+      - name: Guide §1.1 checklist via port-forward
+        if: always()
+        run: |
+          kubectl -n tetrix port-forward --address 127.0.0.1 svc/tetrix-traefik 18080:80 >/tmp/pf.log 2>&1 &
+          sleep 5
+          for u in "http://localhost:18080/" "http://localhost:18080/auth/realms/tetrix/.well-known/openid-configuration" "http://localhost:18080/api/v1"; do
+            printf '%-75s -> %s\n' "$u" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$u" || echo FAIL)"
+          done
+          kill %1 2>/dev/null || true
+
+      - name: Summary
+        if: always()
+        env:
+          HELM_RC: ${{ steps.helm.outputs.rc }}
+          SETTLED: ${{ steps.wait.outputs.settled }}
+        run: |
+          { echo "### Throwaway Linux K8s E2E (helm, minikube on $(uname -m))"; echo; echo "| item | value |"; echo "|---|---|"
+            echo "| chart | ${CHART_VERSION} |"; echo "| helm exit | ${HELM_RC:-not run} |"; echo "| release settled | ${SETTLED:-unknown} |"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Teardown
+        if: always()
+        run: minikube delete || true
+
+      - name: Verdict (red unless helm exited 0 AND the release settled)
+        if: always()
+        env:
+          HELM_RC: ${{ steps.helm.outputs.rc }}
+          SETTLED: ${{ steps.wait.outputs.settled }}
+        run: |
+          echo "helm exit=${HELM_RC:-none}  settled=${SETTLED:-unknown}"
+          [ "${HELM_RC}" = "0" ] && [ "${SETTLED}" = "true" ]
+
