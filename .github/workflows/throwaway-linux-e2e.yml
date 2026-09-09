@@ -117,7 +117,16 @@ jobs:
         run: |
           cd ~/tetrix-docker
           cp .env.example .env
-          sed -i "s#^LICENSE_TOKEN=.*#LICENSE_TOKEN=${LICENSE_TOKEN}#" .env
+          # Strip whitespace and stray quotes a paste can carry; then describe the
+          # SHAPE of the token (never the value) so a "malformed" rejection from the
+          # mint endpoint is explainable from the log alone.
+          LICENSE_TOKEN="$(printf '%s' "$LICENSE_TOKEN" | tr -d '[:space:]' | sed -e "s/^['\"]*//" -e "s/['\"]*$//")"
+          segs=$(printf '%s' "$LICENSE_TOKEN" | awk -F. '{print NF}')
+          if printf '%s' "$LICENSE_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'; then shape="JWT-shaped"; else shape="NOT JWT-shaped"; fi
+          echo "license token: length=${#LICENSE_TOKEN} dot-segments=${segs} ${shape}"
+          printf 'LICENSE_TOKEN=%s\n' "$LICENSE_TOKEN" > "$RUNNER_TEMP/tok.env"
+          sed -i '/^LICENSE_TOKEN=/d' .env && cat "$RUNNER_TEMP/tok.env" >> .env && rm -f "$RUNNER_TEMP/tok.env"
+          echo "LICENSE_TOKEN line present in .env: $(grep -cE '^LICENSE_TOKEN=.+' .env)"
           if [ "$SET_PLATFORM_AMD64" = "true" ]; then
             echo "applying the guide's Intel/AMD64 prose step"
             sed -i -e 's#^FRONTEND_PLATFORM=.*#FRONTEND_PLATFORM=linux/amd64#' -e 's#^COLLECTORS_PLATFORM=.*#COLLECTORS_PLATFORM=linux/amd64#' .env
