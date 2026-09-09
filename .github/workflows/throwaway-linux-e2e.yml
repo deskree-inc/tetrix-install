@@ -1,0 +1,118 @@
+# THROWAWAY. Not part of the product. Runs the literal guide commands (§2.2)
+# against the real v0.9.0 release, verbatim, on a genuine Linux Docker Engine
+# host (ubuntu-latest runner) -- the environment class Docker Desktop cannot
+# reproduce, where F-02/F-03/F-04 originally manifested. Exists only on this
+# throwaway branch; delete the branch when done.
+name: Throwaway Linux E2E (v0.9.0, do not merge)
+
+on:
+  workflow_dispatch:
+    inputs:
+      license_token:
+        description: "Tetrix license token (masked in logs)"
+        required: true
+        type: string
+
+jobs:
+  linux-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask the license token
+        env:
+          LICENSE_TOKEN: ${{ inputs.license_token }}
+        run: echo "::add-mask::${LICENSE_TOKEN}"
+
+      - name: Baseline versions (this is the thing Docker Desktop cannot be)
+        run: |
+          echo "kernel: $(uname -a)"
+          echo "docker: $(docker --version)"
+          echo "compose: $(docker compose version)"
+          echo "ulimit -l: $(ulimit -l)"
+          id
+
+      - name: 1. Download the signed compose bundle (guide §2.2, verbatim)
+        run: |
+          set -eo pipefail
+          curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
+            | bash -s -- --version 0.9.0 \
+              --sha256 03da2e6dc97e0c95c53d217bc3f929831b4740b369058551904f746e5b43cfab \
+              ~/tetrix-docker
+          echo "download.sh exit=$?"
+
+      - name: Permission check BEFORE any workaround (F-02)
+        run: |
+          cd ~/tetrix-docker
+          echo "world-unreadable directories (should be none if F-02 is fixed):"
+          find . -maxdepth 2 -type d ! -perm -o+rx 2>/dev/null | grep -v '^\.$' || echo "  (none)"
+
+      - name: 2. Create .env, set LICENSE_TOKEN (guide §2.2, verbatim -- no repin, no chmod, no override file)
+        env:
+          LICENSE_TOKEN: ${{ inputs.license_token }}
+        run: |
+          cd ~/tetrix-docker
+          cp .env.example .env
+          sed -i "s#^LICENSE_TOKEN=.*#LICENSE_TOKEN=${LICENSE_TOKEN}#" .env
+          grep -c '^ADMIN_API_IMAGE_TAG=sha-e4f7325' .env && echo "trio already sha-e4f7325 by default (no repin applied)"
+          chmod +x scripts/setup.sh
+
+      - name: 3. Run setup.sh (guide §2.2, verbatim -- single pass, no retry, no workaround)
+        env:
+          OPENAI_API_KEY: "sk-linux-e2e-placeholder"
+        run: |
+          cd ~/tetrix-docker
+          set +e
+          ./scripts/setup.sh
+          echo "setup.sh exit=$?"
+          set -e
+
+      - name: Service state (all 34, one shots must be Exited(0), long-runners Running/healthy)
+        if: always()
+        run: |
+          cd ~/tetrix-docker
+          docker compose ps -a --format 'table {{.Name}}\t{{.State}}\t{{.Status}}'
+
+      - name: Vault mlock check (F-03)
+        if: always()
+        run: |
+          cd ~/tetrix-docker
+          echo "vault container state:"
+          docker inspect tetrix-vault-1 --format '{{.State.Status}} healthy={{.State.Health.Status}}' || true
+          echo
+          echo "vault status:"
+          docker compose exec -T vault sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status' || true
+          echo
+          echo "vault logs (looking for the mlock failure signature):"
+          docker compose logs vault --tail=15 | grep -i mlock || echo "  (no mlock error -- good)"
+
+      - name: vault-init file ownership check (F-04)
+        if: always()
+        run: |
+          cd ~/tetrix-docker
+          ls -la runtime/ 2>/dev/null | grep vault || true
+          echo "expect: owned by the runner user, NOT root:root"
+
+      - name: Guide §2.4 checklist
+        if: always()
+        run: |
+          echo "https://tetrix.local/ -> $(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 https://tetrix.local/ || echo FAIL)"
+          echo "OIDC discovery         -> $(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 https://tetrix.local/auth/realms/tetrix/.well-known/openid-configuration || echo FAIL)"
+          echo "/api/v1 (unauth)       -> $(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 https://tetrix.local/api/v1 || echo FAIL)"
+          echo "/mcp (unauth)          -> $(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 -X POST https://tetrix.local/mcp -d '{}' || echo FAIL)"
+          echo "certificate:"
+          echo | openssl s_client -connect tetrix.local:443 -servername tetrix.local 2>/dev/null | openssl x509 -noout -subject 2>/dev/null || true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Throwaway Linux E2E result"
+            echo
+            echo "Ran on: $(uname -a)"
+            echo
+            echo "See job steps above for full evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Teardown
+        if: always()
+        run: |
+          cd ~/tetrix-docker && docker compose down -v || true
