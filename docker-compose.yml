@@ -635,8 +635,6 @@ services:
 
   frontend:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-a50f6af}
-    # Multi-arch (amd64+arm64). Default arm64 for Apple Silicon; set FRONTEND_PLATFORM=linux/amd64 on Intel.
-    platform: ${FRONTEND_PLATFORM:-linux/arm64}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -960,10 +958,8 @@ services:
     restart: unless-stopped
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
-  # Multi-arch collectors tags (0.8.0+ SemVer). Default arm64; Intel: COLLECTORS_PLATFORM=linux/amd64.
   collectors-migrate:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -975,7 +971,6 @@ services:
 
   collectors-api:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     env_file:
       - path: .env
         required: true
@@ -1034,7 +1029,6 @@ services:
 
   collectors-mcp:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1064,7 +1058,6 @@ services:
 
   collectors-dispatcher:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1090,7 +1083,6 @@ services:
 
   collectors-worker:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     env_file:
       - path: .env
         required: true
@@ -1153,7 +1145,6 @@ services:
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1205,7 +1196,6 @@ services:
   # wait-for-daemon init container.
   collectors-hitl:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1248,7 +1238,6 @@ services:
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1289,7 +1278,6 @@ services:
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
     image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6266cca}
-    platform: ${COLLECTORS_PLATFORM:-linux/arm64}
     env_file: .env
     depends_on:
       collectors-migrate:

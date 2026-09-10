@@ -132,7 +132,7 @@ fi
 # This repository's root IS the compose bundle (docker-compose.yml, scripts/,
 # postgres/, traefik/, chart-scripts/ at the top level).
 REPO_NAME="${REPO##*/}"
-ARCHIVE_DIR="${REPO_NAME}-${BRANCH}"
+ARCHIVE_DIR="${REPO_NAME}-${BRANCH//\//-}"
 mkdir -p "$DEST"
 
 echo "DEVELOPMENT DOWNLOAD: unversioned ${BRANCH} of ${REPO}, no checksum." >&2

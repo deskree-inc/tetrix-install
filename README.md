@@ -167,9 +167,10 @@ Accept the self-signed certificate in your browser on first visit.
 
 **Bootstrap only (no start):** `./scripts/setup.sh --no-start`
 
-Frontend + collectors images are multi-arch. Compose defaults
-`FRONTEND_PLATFORM` / `COLLECTORS_PLATFORM` to `linux/arm64` (Apple Silicon).
-On Intel hosts, set both to `linux/amd64` in `.env`.
+Every first-party image is multi-arch (`linux/amd64` + `linux/arm64`) and the
+compose file pins no platform, so Docker runs the host's native variant on Apple
+Silicon and Intel/AMD64 alike. To force a platform (emulation), add a `platform:`
+key for that service in `docker-compose.override.yml`.
 
 **Pulling from Docker Hub instead** — set `TETRIX_IMAGE_ORIGIN=` and
 `TETRIX_BROKER_ENABLED=false` in `.env`, then use your own `docker login` if
@@ -245,7 +246,7 @@ docker compose up -d --remove-orphans
 | Collectors worker / Vault | `docker compose logs vault-init vault-unseal collectors-worker` |
 | License paste fails with `unknown_kid` | Re-run `./scripts/setup.sh`, recreate `licensing`, then re-paste |
 | Setup fails fetching ops keys | Need network to `ops.deskree.com` |
-| Intel / amd64 host | Set `FRONTEND_PLATFORM=linux/amd64` and `COLLECTORS_PLATFORM=linux/amd64` |
+| `exec format error` / `Exited (255)` on frontend or collectors-* | Bundles up to 0.9.0 pinned those services to `linux/arm64`; on an x86-64 host without QEMU binfmt they cannot start. Upgrade the bundle — nothing to set in `.env` (stale `FRONTEND_PLATFORM`/`COLLECTORS_PLATFORM` lines are ignored). |
 | `unknown flag: --quiet` / `docker compose` not a command | Install Compose v2 (`docker-compose-v2` on Ubuntu). `setup.sh` installs the plugin when `apt-get` is present. Do not pass `--quiet` to `docker compose pull`. |
 
 Paste a real Deskree-issued license token in the SPA after sign-in (or set
