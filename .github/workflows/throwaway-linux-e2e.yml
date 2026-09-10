@@ -324,7 +324,17 @@ jobs:
       - name: Guide §1.1 — wait for DNS first (field test run 3)
         run: |
           date -u +%FT%TZ
+          # As printed in the guide after #361. On a cluster that was created a
+          # second ago the CoreDNS pod may not exist yet and `kubectl wait` errors
+          # with "no matching resources found" instead of waiting (seen on a fresh
+          # macOS minikube, 2026-09-10 00:08:49Z). Record that outcome, then wait
+          # on the Deployment, which does exist immediately.
+          set +e
           kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=kube-dns --timeout=120s
+          echo "guide command exit=$?"
+          set -e
+          for i in $(seq 1 60); do kubectl -n kube-system get deploy coredns >/dev/null 2>&1 && break; sleep 2; done
+          kubectl -n kube-system rollout status deployment/coredns --timeout=180s
           date -u +%FT%TZ
 
       - name: Guide §1.1 — helm pull + install (evaluation values, licence-backed pulls)
