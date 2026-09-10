@@ -49,7 +49,7 @@ on:
         description: "compose = guide Part II on Docker Engine; helm = guide §1.1 evaluation on a fresh minikube (Linux)"
         required: true
         type: choice
-        options: [compose, helm]
+        options: [compose, helm, probe]
         default: compose
       chart_version:
         description: "helm only: published chart version to install"
@@ -426,4 +426,24 @@ jobs:
         run: |
           echo "helm exit=${HELM_RC:-none}  settled=${SETTLED:-unknown}"
           [ "${HELM_RC}" = "0" ] && [ "${SETTLED}" = "true" ]
+
+  probe:
+    if: inputs.path == 'probe'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: registry.deskree.com edge from a second network — HTTP/1.1 head-size sweep
+        run: |
+          j() { head -c "$1" /dev/zero | tr '\0' 'x'; }
+          echo "runner egress: $(curl -sS --max-time 10 https://api.ipify.org || echo '?')  iface mtu: $(ip -o link show dev "$(ip route show default | awk '{print $5; exit}')" | grep -oE 'mtu [0-9]+')"
+          echo "--- path MTU (ping -M do) to the LB and to www.google.com ---"
+          for h in 136.110.222.57 www.google.com; do for s in 1300 1400 1450 1472; do printf '%-16s payload=%-5s ' "$h" "$s"; ping -M do -c 1 -W 2 -s "$s" "$h" >/dev/null 2>&1 && echo ok || echo DROPPED; done; done
+          echo "--- HTTP/1.1 to registry.deskree.com/token with growing junk header (000 = reset) ---"
+          for n in 600 1000 1190 1210 1320 2000 4000; do printf 'junk=%-5s ' "$n"; curl -sS --http1.1 -o /dev/null -w 'http=%{http_code}\n' --max-time 20 -H "X-Junk: $(j $n)" https://registry.deskree.com/token 2>/dev/null || echo "http=000 (reset/closed)"; done
+          echo "--- same over HTTP/2 (control) ---"
+          for n in 1320 4000; do printf 'junk=%-5s ' "$n"; curl -sS --http2 -o /dev/null -w 'http=%{http_code} ver=%{http_version}\n' --max-time 20 -H "X-Junk: $(j $n)" https://registry.deskree.com/token 2>/dev/null || echo "http=000"; done
+          echo "--- Cloud Run direct, HTTP/1.1, big head (control) ---"
+          curl -sS --http1.1 -o /dev/null -w 'run.app junk=4000 http=%{http_code}\n' --max-time 20 -H "X-Junk: $(j 4000)" https://tetrix-registry-broker-21368441946.us-central1.run.app/token 2>/dev/null || echo "run.app http=000"
+          echo "--- www.google.com, HTTP/1.1, big head (control) ---"
+          curl -sS --http1.1 -o /dev/null -w 'google junk=4000 http=%{http_code}\n' --max-time 20 -H "X-Junk: $(j 4000)" https://www.google.com/generate_204 2>/dev/null || echo "google http=000"
 
