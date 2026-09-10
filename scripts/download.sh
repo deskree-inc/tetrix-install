@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./scripts/download.sh --dev-main /opt/tetrix
-#   ./scripts/download.sh --version 0.8.56 --sha256 "$COMPOSE_BUNDLE_SHA256" /opt/tetrix
+#   ./scripts/download.sh --version 0.8.56 --sha256 "$INSTALL_BUNDLE_SHA256" /opt/tetrix
 #
 # This public repo's root IS the compose bundle. Release assets are named
 # deploy-docker-<version>.tgz on deskree-inc/tetrix-install.
@@ -33,8 +33,12 @@ Usage:
   --dev-main            Development only: copy this repository's default
                         branch. Unversioned and unverified.
   --version <x.y.z>     Release version to install (no leading v).
-  --sha256 <hex64>      Expected SHA-256 of deploy-docker-<version>.tgz,
-                        published with the GitHub release.
+  --sha256 <hex64>      Expected SHA-256 of deploy-docker-<version>.tgz as
+                        published on THIS repo's release: the bundle_sha256
+                        field of public-release.json. The tetrix-ee-helm-chart
+                        release ships a different, larger artifact under the
+                        same filename; its compose.bundle_sha256 is NOT this
+                        value and will fail the checksum check.
 
   Exactly one mode is required. An invocation with neither --dev-main nor both
   release arguments exits 2.
