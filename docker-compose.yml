@@ -175,7 +175,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-09-07T16-13-09Z}
+    image: quay.io/minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-09-07T16-13-09Z}
     env_file: .env
     command: server /data --console-address ":9001"
     environment:
@@ -189,7 +189,7 @@ services:
     restart: unless-stopped
 
   minio-init:
-    image: minio/mc:${MINIO_MC_IMAGE_TAG:-RELEASE.2025-08-13T08-35-41Z}
+    image: quay.io/minio/mc:${MINIO_MC_IMAGE_TAG:-RELEASE.2025-08-13T08-35-41Z}
     env_file: .env
     depends_on:
       minio:
