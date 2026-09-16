@@ -202,6 +202,57 @@ services:
       "
     restart: "no"
 
+  # ── SeaweedFS object store (ADR-0037 D2) ────────────────────────────────────
+  # The successor to `minio` above, OFF by default. A public installer that
+  # flipped stores on `up` would come back pointed at an EMPTY volume — every
+  # entity still listed from Postgres, every read returning no content — so
+  # turning it on is deliberate: COMPOSE_PROFILES=seaweedfs plus
+  # TETRIX_OBJECT_STORE=seaweedfs, paired with the object copy in the runbook.
+  #
+  # Why: MinIO's community edition is archived and Docker Hub stopped serving its
+  # images on 2026-09-11. Beyond availability, MinIO consumes 2 filesystem entries
+  # per object and grows linearly while SeaweedFS packs objects into volume files
+  # — measured on the same 100,000 objects, MinIO 200,048 entries / 922 MB against
+  # SeaweedFS 119 / 398 MB. The August 2026 outage was inode exhaustion with
+  # 35 GiB still free.
+  #
+  # Four defaults are off: -master.telemetry (posts to telemetry.seaweedfs.com
+  # from every install), -admin.ui (unauthenticated when its password is empty,
+  # which it is by default), and the iceberg/lance/webdav listeners nothing uses.
+  # Authentication engages ONLY because AWS_ACCESS_KEY_ID/SECRET are set — with
+  # none, every S3 call is served anonymously.
+  #
+  # `-bucket` creates the bucket at start-up, so unlike the MinIO path this store
+  # needs no init container at all.
+  seaweedfs:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_IMAGE_TAG:-4.47}
+    profiles: ["seaweedfs"]
+    env_file: .env
+    command:
+      - mini
+      - -dir=/data
+      - -s3.port=8333
+      - -bucket=tetrix-objects
+      - -metricsPort=9327
+      - -master.volumeSizeLimitMB=1024
+      - -master.telemetry=false
+      - -admin.ui=false
+      - -webdav=false
+      - -s3.port.iceberg=0
+      - -s3.port.lance=0
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      # Not capacity-aware, deliberately: a measured-full SeaweedFS still answers
+      # 200 and serves reads, and a probe that failed on a full volume would
+      # restart a store an operator needs up in order to reclaim.
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8333/healthz"]
+      <<: *health-interval
+    restart: unless-stopped
+
   # ── Vault (collectors credentials) ──────────────────────────────────────────
   # hashicorp/vault runs as uid 100:gid 1000; named volumes are root-owned by default.
   vault-perms:
@@ -1381,6 +1432,9 @@ volumes:
   neo4j-data:
   meilisearch-data:
   minio-data:
+  # ADR-0037 D2. Separate from minio-data on purpose: the two stores must never
+  # share a volume, and keeping both lets an operator migrate and roll back.
+  seaweedfs-data:
   vault-data:
   daemon-tmp:
   updater-state:
