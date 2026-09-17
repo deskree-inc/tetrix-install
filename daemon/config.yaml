@@ -70,11 +70,24 @@ meilisearch:
   masterKey: "${MEILI_MASTER_KEY}"
   indexName: "entities"
 
+# The object store (ADR-0037). `minio:` is the historical block name and describes
+# any S3-compatible store.
+#
+# The endpoint is a variable so that enabling the SeaweedFS profile actually
+# repoints the daemon. It was a literal `minio:9000`, so COMPOSE_PROFILES=seaweedfs
+# started SeaweedFS, left MinIO running (it has no profile, so the profile ADDS a
+# service rather than replacing one), and the daemon kept writing every object to
+# MinIO — with no error anywhere.
+#
+# The default lives in docker-compose.yml, not here: the daemon expands this file
+# with Go's os.ExpandEnv, which has no `:-default` syntax. `${VAR:-fallback}` there
+# expands to the EMPTY STRING — measured, and it does so even when VAR is set — so
+# writing the default inline would silently blank the endpoint.
 minio:
-  endpoint: "minio:9000"
+  endpoint: "${OBJECT_STORE_ENDPOINT}"
   accessKey: "${MINIO_ROOT_USER}"
   secretKey: "${MINIO_ROOT_PASSWORD}"
-  bucket: "tetrix-objects"
+  bucket: "${OBJECT_STORE_BUCKET}"
   useSSL: false
 
 embedding:

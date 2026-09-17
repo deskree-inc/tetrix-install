@@ -228,18 +228,36 @@ services:
     image: chrislusf/seaweedfs:${SEAWEEDFS_IMAGE_TAG:-4.47}
     profiles: ["seaweedfs"]
     env_file: .env
+    # The credential is checked at START-UP. An empty one is the dangerous case:
+    # SeaweedFS engages authentication only when a credential is configured, so
+    # with none it answers anonymous PUT, GET and LIST with 200 while /healthz
+    # stays 200 and the daemon works — the whole object store published with no
+    # signal anywhere. MinIO refuses to boot in the same situation. This matters
+    # MORE here than in the chart: this is the public installer, where operators
+    # hand-edit .env. Ported verbatim from tetrix-ee-helm-chart#379.
+    entrypoint: ["/bin/sh", "-ec"]
     command:
-      - mini
-      - -dir=/data
-      - -s3.port=8333
-      - -bucket=tetrix-objects
-      - -metricsPort=9327
-      - -master.volumeSizeLimitMB=1024
-      - -master.telemetry=false
-      - -admin.ui=false
-      - -webdav=false
-      - -s3.port.iceberg=0
-      - -s3.port.lance=0
+      - |
+        # $$ and not $: compose interpolates the file BEFORE the container sees
+        # it, so a single $ made this read `[ -z "" ]` and refuse to start even
+        # with the credential correctly set.
+        if [ -z "$${AWS_ACCESS_KEY_ID:-}" ] || [ -z "$${AWS_SECRET_ACCESS_KEY:-}" ]; then
+          echo "FATAL: MINIO_ROOT_USER/MINIO_ROOT_PASSWORD are empty. SeaweedFS treats an" >&2
+          echo "       empty credential as NO credential and would serve every S3 call" >&2
+          echo "       anonymously while looking healthy. Refusing to start." >&2
+          exit 1
+        fi
+        exec weed mini \
+          -dir=/data \
+          -s3.port=8333 \
+          -bucket=tetrix-objects \
+          -metricsPort=9327 \
+          -master.volumeSizeLimitMB=1024 \
+          -master.telemetry=false \
+          -admin.ui=false \
+          -webdav=false \
+          -s3.port.iceberg=0 \
+          -s3.port.lance=0
     environment:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
@@ -568,6 +586,11 @@ services:
         condition: service_completed_successfully
     command: ["--config=/etc/tetrixaidb/config.yaml"]
     environment:
+      # Compose supplies these defaults because the daemon cannot: it expands
+      # config.yaml with os.ExpandEnv, which has no `:-default` form. Setting
+      # OBJECT_STORE_ENDPOINT is what actually moves the daemon to the other store.
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-minio:9000}
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tetrix-objects}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_AUDIENCE_DAEMON: ${KEYCLOAK_AUDIENCE_DAEMON}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-tetrix-frontend}

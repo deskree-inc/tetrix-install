@@ -28,3 +28,14 @@ jobs:
           set -euo pipefail
           chmod +x scripts/assert-published-pins.sh
           scripts/assert-published-pins.sh
+
+      # The daemon expands daemon/config.yaml with Go's os.ExpandEnv, which
+      # substitutes the EMPTY STRING for anything unset and reports nothing. A
+      # variable the daemon service cannot see is therefore a silent
+      # misconfiguration — `endpoint: ""` — rather than an error.
+      - name: Daemon config variables are reachable by the daemon service
+        run: |
+          set -euo pipefail
+          pip install -q pyyaml
+          chmod +x scripts/assert-daemon-config-env-complete.sh
+          scripts/assert-daemon-config-env-complete.sh
