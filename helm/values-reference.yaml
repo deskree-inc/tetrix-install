@@ -78,10 +78,16 @@ ingress:
 #   enabled: true
 #   persistence:
 #     size: 10Gi
-# minio:
+# seaweedfs:
 #   enabled: true
 #   persistence:
 #     size: 50Gi
+# objectStore:
+#   # Only after copying the objects off a 0.9.x MinIO install (ADR-0037 D7). The
+#   # chart refuses to upgrade while a MinIO volume is still present and this is
+#   # unset, because flipping stores without copying points the daemon at an empty
+#   # bucket and nothing errors.
+#   migrationComplete: false
 #
 # externalPostgres:
 #   host: ""
@@ -96,10 +102,16 @@ ingress:
 # externalMeilisearch:
 #   host: ""
 #   indexName: tetrix
+# An object store the chart does NOT deploy — a customer MinIO, Ceph RGW, an
+# appliance, or a managed S3/GCS bucket. Keeps its historical name; the bundled
+# MinIO it was named after was removed in 1.0.
 # externalMinio:
 #   endpoint: ""
 #   useSSL: false
 #   bucket: tetrix
+#   pathStyle: null   # unset = let the SDK decide from the endpoint
+#   region: ""
+#   credentialSource: ""   # static | env | iam | web-identity | chain
 
 # ---------------------------------------------------------------------------
 # Embedding

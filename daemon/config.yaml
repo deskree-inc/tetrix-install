@@ -51,6 +51,11 @@ storage:
   vectorBackend: "pgvector"
   keywordBackend: "meilisearch"
   graphBackend: "neo4j"
+  # "minio" and not "s3", deliberately. The daemon accepts both for the same
+  # S3-compatible backend (ADR-0037 D1), but "s3" only arrived in tetrix-ee #133 —
+  # an install whose daemon image predates it would reject "s3" outright. "minio"
+  # is understood by every version, old and new, and names an endpoint shape
+  # rather than a vendor. Same reason the block below keeps its name.
   objectBackend: "minio"
 
 limits:

@@ -173,60 +173,8 @@ services:
       test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
       <<: *health-interval
     restart: unless-stopped
-
-  minio:
-    image: quay.io/minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-09-07T16-13-09Z}
-    env_file: .env
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
-      <<: *health-interval
-    restart: unless-stopped
-
-  minio-init:
-    image: quay.io/minio/mc:${MINIO_MC_IMAGE_TAG:-RELEASE.2025-08-13T08-35-41Z}
-    env_file: .env
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-        mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
-        mc mb --ignore-existing local/tetrix-objects &&
-        echo 'bucket tetrix-objects ready'
-      "
-    restart: "no"
-
-  # ── SeaweedFS object store (ADR-0037 D2) ────────────────────────────────────
-  # The successor to `minio` above, OFF by default. A public installer that
-  # flipped stores on `up` would come back pointed at an EMPTY volume — every
-  # entity still listed from Postgres, every read returning no content — so
-  # turning it on is deliberate: COMPOSE_PROFILES=seaweedfs plus
-  # TETRIX_OBJECT_STORE=seaweedfs, paired with the object copy in the runbook.
-  #
-  # Why: MinIO's community edition is archived and Docker Hub stopped serving its
-  # images on 2026-09-11. Beyond availability, MinIO consumes 2 filesystem entries
-  # per object and grows linearly while SeaweedFS packs objects into volume files
-  # — measured on the same 100,000 objects, MinIO 200,048 entries / 922 MB against
-  # SeaweedFS 119 / 398 MB. The August 2026 outage was inode exhaustion with
-  # 35 GiB still free.
-  #
-  # Four defaults are off: -master.telemetry (posts to telemetry.seaweedfs.com
-  # from every install), -admin.ui (unauthenticated when its password is empty,
-  # which it is by default), and the iceberg/lance/webdav listeners nothing uses.
-  # Authentication engages ONLY because AWS_ACCESS_KEY_ID/SECRET are set — with
-  # none, every S3 call is served anonymously.
-  #
-  # `-bucket` creates the bucket at start-up, so unlike the MinIO path this store
-  # needs no init container at all.
   seaweedfs:
     image: chrislusf/seaweedfs:${SEAWEEDFS_IMAGE_TAG:-4.47}
-    profiles: ["seaweedfs"]
     env_file: .env
     # The credential is checked at START-UP. An empty one is the dangerous case:
     # SeaweedFS engages authentication only when a credential is configured, so
@@ -580,8 +528,10 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
+      # SeaweedFS creates its own bucket from `-bucket`, which is why the
+      # minio-init container that ran `mc mb` no longer exists.
+      seaweedfs:
+        condition: service_healthy
       keycloak-provision:
         condition: service_completed_successfully
     command: ["--config=/etc/tetrixaidb/config.yaml"]
@@ -589,7 +539,7 @@ services:
       # Compose supplies these defaults because the daemon cannot: it expands
       # config.yaml with os.ExpandEnv, which has no `:-default` form. Setting
       # OBJECT_STORE_ENDPOINT is what actually moves the daemon to the other store.
-      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-minio:9000}
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-seaweedfs:8333}
       OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tetrix-objects}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_AUDIENCE_DAEMON: ${KEYCLOAK_AUDIENCE_DAEMON}
@@ -1454,6 +1404,11 @@ volumes:
   owner-org-id:
   neo4j-data:
   meilisearch-data:
+  # RETAINED, NOT USED. No service mounts this any more — the bundled MinIO was
+  # removed in 1.0. The declaration stays so an existing install's object data is
+  # not orphaned: it is the rollback target during the ADR-0037 D7 migration
+  # window. Migrate BEFORE upgrading — the copy needs MinIO running and this
+  # bundle no longer starts it. Remove once the fleet has signed off.
   minio-data:
   # ADR-0037 D2. Separate from minio-data on purpose: the two stores must never
   # share a volume, and keeping both lets an operator migrate and roll back.
