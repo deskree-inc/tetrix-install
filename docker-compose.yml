@@ -195,6 +195,31 @@ services:
           echo "       anonymously while looking healthy. Refusing to start." >&2
           exit 1
         fi
+        # Upgrade-without-copy guard — the compose twin of the chart's
+        # `objectStore.migrationComplete` render-time refusal. The two stores have
+        # SEPARATE volumes: if the retired MinIO volume still holds objects and the
+        # operator has not asserted the ADR-0037 D7 copy is done, starting here
+        # hands the daemon an EMPTY bucket — entities still list from PostgreSQL,
+        # every content read returns nothing, and nothing errors. Compose has no
+        # render step, so the refusal lives in the service: it covers the updater's
+        # `up -d` (which then health-gates and rolls back) and a hand-run
+        # `docker compose up -d` alike. The legacy volume is mounted read-only at
+        # /legacy. The bundled bucket was always `tetrix-objects`, and MinIO keeps
+        # one <key>/xl.meta directory per object under it, so any entry there is an
+        # object. A fresh install has an empty volume and passes. `ls` errors are
+        # folded into the output on purpose: a directory we cannot read is one we
+        # cannot prove empty, so it refuses rather than passes.
+        if [ "$${OBJECT_STORE_MIGRATION_COMPLETE:-false}" != "true" ] && [ -d /legacy/tetrix-objects ]; then
+          if [ -n "$$(ls -A /legacy/tetrix-objects 2>&1 | head -n 1)" ]; then
+            echo "FATAL: the retired MinIO volume (minio-data) still holds objects and" >&2
+            echo "       OBJECT_STORE_MIGRATION_COMPLETE is not 'true'. Starting SeaweedFS now" >&2
+            echo "       would point the daemon at an EMPTY store with no error anywhere." >&2
+            echo "       Go back to the 0.9.x bundle, run scripts/migrate-object-store.sh" >&2
+            echo "       (ADR-0037 D7) and reconcile it; then upgrade with" >&2
+            echo "       OBJECT_STORE_MIGRATION_COMPLETE=true in .env. Refusing to start." >&2
+            exit 1
+          fi
+        fi
         exec weed mini \
           -dir=/data \
           -s3.port=8333 \
@@ -209,8 +234,13 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      # The operator's assertion that the D7 copy is done (see the guard above).
+      OBJECT_STORE_MIGRATION_COMPLETE: ${OBJECT_STORE_MIGRATION_COMPLETE:-false}
     volumes:
       - seaweedfs-data:/data
+      # Read-only, and only so the start-up guard can see whether an 0.9.x
+      # install's objects are still in it. SeaweedFS never writes here.
+      - minio-data:/legacy:ro
     healthcheck:
       # Not capacity-aware, deliberately: a measured-full SeaweedFS still answers
       # 200 and serves reads, and a probe that failed on a full volume would
@@ -1404,11 +1434,13 @@ volumes:
   owner-org-id:
   neo4j-data:
   meilisearch-data:
-  # RETAINED, NOT USED. No service mounts this any more — the bundled MinIO was
-  # removed in 1.0. The declaration stays so an existing install's object data is
-  # not orphaned: it is the rollback target during the ADR-0037 D7 migration
-  # window. Migrate BEFORE upgrading — the copy needs MinIO running and this
-  # bundle no longer starts it. Remove once the fleet has signed off.
+  # RETAINED. The bundled MinIO was removed in 1.0; the declaration stays so an
+  # existing install's object data is not orphaned — it is the rollback target
+  # during the ADR-0037 D7 migration window. Its only mount is read-only into
+  # `seaweedfs` at /legacy, for the start-up guard that refuses to run beside a
+  # still-populated copy of it (see that service). Migrate BEFORE upgrading — the
+  # copy needs MinIO running and this bundle no longer starts it. Remove once the
+  # fleet has signed off.
   minio-data:
   # ADR-0037 D2. Separate from minio-data on purpose: the two stores must never
   # share a volume, and keeping both lets an operator migrate and roll back.

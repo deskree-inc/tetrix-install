@@ -39,3 +39,16 @@ jobs:
           pip install -q pyyaml
           chmod +x scripts/assert-daemon-config-env-complete.sh
           scripts/assert-daemon-config-env-complete.sh
+
+      # Every other check reads the compose file as TEXT. This one STARTS the
+      # object store: it must come up healthy and refuse anonymous S3 access,
+      # refuse to start on an empty credential, and refuse to start beside an
+      # 0.9.x install's still-populated MinIO volume unless the operator has set
+      # OBJECT_STORE_MIGRATION_COMPLETE=true — the compose twin of the chart's
+      # render-time upgrade guard. A start-up guard compose had silently eaten
+      # sat in a restart loop for a day while every text check stayed green.
+      - name: SeaweedFS compose service starts, closes the store, and guards the upgrade
+        run: |
+          set -euo pipefail
+          chmod +x scripts/assert-seaweedfs-compose-service.sh scripts/object-store-preflight.sh
+          scripts/assert-seaweedfs-compose-service.sh
