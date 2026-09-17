@@ -88,6 +88,20 @@ ingress:
 #   # unset, because flipping stores without copying points the daemon at an empty
 #   # bucket and nothing errors.
 #   migrationComplete: false
+#   # External store (read only when seaweedfs.enabled=false). An object store the
+#   # chart does NOT deploy — a customer MinIO, Ceph RGW, an appliance, or a managed
+#   # S3/GCS bucket. RENAMED from a top-level `externalMinio` block in 1.0; a leftover
+#   # `externalMinio` fails the render with the move instruction.
+#   endpoint: ""
+#   useSSL: false
+#   bucket: tetrix
+#   pathStyle: null   # unset = let the SDK decide from the endpoint
+#   region: ""
+#   createBucket: true
+#   credentialSource: ""   # static | env | iam | web-identity | chain
+#   caBundleSecret:
+#     name: ""
+#     key: ca.crt
 #
 # externalPostgres:
 #   host: ""
@@ -102,16 +116,6 @@ ingress:
 # externalMeilisearch:
 #   host: ""
 #   indexName: tetrix
-# An object store the chart does NOT deploy — a customer MinIO, Ceph RGW, an
-# appliance, or a managed S3/GCS bucket. Keeps its historical name; the bundled
-# MinIO it was named after was removed in 1.0.
-# externalMinio:
-#   endpoint: ""
-#   useSSL: false
-#   bucket: tetrix
-#   pathStyle: null   # unset = let the SDK decide from the endpoint
-#   region: ""
-#   credentialSource: ""   # static | env | iam | web-identity | chain
 
 # ---------------------------------------------------------------------------
 # Embedding

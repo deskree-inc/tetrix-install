@@ -164,7 +164,7 @@ for new installs**.
 | `externalPostgres.host` / `.port` / `.database` / `.user` / `.sslMode` | — | Used only when `postgres.enabled=false`. |
 | `externalNeo4j.uri` / `.username` / `.database` | — | Used only when `neo4j.enabled=false`. |
 | `externalMeilisearch.host` / `.indexName` | — | Used only when `meilisearch.enabled=false`. |
-| `externalMinio.endpoint` / `.useSSL` / `.bucket` / `.pathStyle` / `.region` / `.credentialSource` | — | An object store the chart does not deploy: a customer MinIO, Ceph RGW, an appliance, or a managed S3/GCS bucket. Used only when `seaweedfs.enabled=false`. |
+| `objectStore.endpoint` / `.useSSL` / `.bucket` / `.pathStyle` / `.region` / `.createBucket` / `.credentialSource` / `.caBundleSecret` | — | An object store the chart does not deploy: a customer MinIO, Ceph RGW, an appliance, or a managed S3/GCS bucket. Used only when `seaweedfs.enabled=false`. |
 
 ### Embedding provider
 
