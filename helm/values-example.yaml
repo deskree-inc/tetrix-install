@@ -5,7 +5,7 @@
 #   ingress.*         hostname, TLS (cert-manager or existingSecret), publicPort
 #   daemon.oidcLoopbackProxy  localhost / port-forward evaluation only
 #   keycloak.*        bundled sign-in
-#   postgres/neo4j/meilisearch/minio + external*   bundled vs bring-your-own DBs
+#   postgres/neo4j/meilisearch/seaweedfs + external*   bundled vs bring-your-own DBs
 #   embedding.*       OpenAI / ollama / none
 #   secrets.*         licenseToken, existingSecret, passwords (auto-gen if omitted)
 #   collectors.*      default-on; healthcheck/hitl/identityConsumer/webhooks/relay are opt-in

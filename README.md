@@ -35,7 +35,7 @@ and does not call helm `OPS_RELEASE_FINALIZE_TOKEN`. Cutting a new public tag
 Images tagged `deskree/*` pull through **`registry.deskree.com`**, Deskree's
 pull-through proxy. The credential is minted from your `LICENSE_TOKEN` and is
 valid for **at most an hour**. Third-party images (PostgreSQL/pgvector, Neo4j,
-Meilisearch, MinIO, Vault) keep their own public origins.
+Meilisearch, SeaweedFS, Vault) keep their own public origins.
 
 To evaluate **without** a license token, pull first-party images from Docker Hub
 instead (see each path below).

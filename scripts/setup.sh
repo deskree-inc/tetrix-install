@@ -579,6 +579,15 @@ if [ -x ./scripts/registry-login.sh ]; then
   fi
 fi
 
+# Upgrade-without-copy guard (ADR-0037 D7). Refuses — with the remedy — while the
+# retired MinIO volume still holds objects and OBJECT_STORE_MIGRATION_COMPLETE is
+# not `true`, BEFORE `up -d` recreates anything or `--remove-orphans` removes the
+# MinIO container. The seaweedfs service repeats the same check at start-up, so
+# the updater's path is covered even though it never runs this script.
+if ! ./scripts/object-store-preflight.sh; then
+  exit 1
+fi
+
 echo "Starting stack (docker compose up -d)..."
 # MEASURED: `up -d` DOES return 1 when a `service_completed_successfully` dependency exits
 # non-zero (keycloak-owner-org-resolve is one), and returns 0 when a `restart: "no"` one-shot

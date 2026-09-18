@@ -158,12 +158,13 @@ for new installs**.
 | `neo4j.persistence.size` | `20Gi` | Volume size. |
 | `meilisearch.enabled` | `true` | Bundle Meilisearch. |
 | `meilisearch.persistence.size` | `10Gi` | Volume size. |
-| `minio.enabled` | `true` | Bundle MinIO. |
-| `minio.persistence.size` | `50Gi` | Volume size. |
+| `seaweedfs.enabled` | `true` | Bundle SeaweedFS, the object store (ADR-0037 D2). The bundled MinIO was removed in 1.0. |
+| `seaweedfs.persistence.size` | `50Gi` | Volume size. |
+| `objectStore.migrationComplete` | `false` | Set `true` only after copying the objects off a 0.9.x MinIO install. The chart REFUSES to upgrade while a MinIO volume is still present and this is unset — flipping stores without copying points the daemon at an empty bucket with no error. |
 | `externalPostgres.host` / `.port` / `.database` / `.user` / `.sslMode` | — | Used only when `postgres.enabled=false`. |
 | `externalNeo4j.uri` / `.username` / `.database` | — | Used only when `neo4j.enabled=false`. |
 | `externalMeilisearch.host` / `.indexName` | — | Used only when `meilisearch.enabled=false`. |
-| `externalMinio.endpoint` / `.useSSL` / `.bucket` | — | Used only when `minio.enabled=false`. |
+| `objectStore.endpoint` / `.useSSL` / `.bucket` / `.pathStyle` / `.region` / `.createBucket` / `.credentialSource` / `.caBundleSecret` | — | An object store the chart does not deploy: a customer MinIO, Ceph RGW, an appliance, or a managed S3/GCS bucket. Used only when `seaweedfs.enabled=false`. |
 
 ### Embedding provider
 
