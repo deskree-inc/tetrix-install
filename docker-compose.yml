@@ -80,7 +80,13 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tetrixaidb"]
+      # `-h 127.0.0.1` forces a TCP probe. WITHOUT it, pg_isready checks the local
+      # unix socket, which the postgres:16 image brings up on its init-time TEMP
+      # server (socket-only) BEFORE it restarts into the real server listening on
+      # TCP :5432. service_healthy then fires during that window and the
+      # postgres-ensure-* one-shots — which connect over TCP to postgres:5432 —
+      # get "connection refused" on a fresh install (#48).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d tetrixaidb"]
       <<: *health-interval
     restart: unless-stopped
 
