@@ -52,3 +52,13 @@ jobs:
           set -euo pipefail
           chmod +x scripts/assert-seaweedfs-compose-service.sh scripts/object-store-preflight.sh
           scripts/assert-seaweedfs-compose-service.sh
+
+      # Static guard for #48: the postgres healthcheck must probe TCP (-h), not the
+      # local socket, or service_healthy fires on the postgres:16 init-time
+      # socket-only temp server and the postgres-ensure-* one-shots race it.
+      - name: Postgres healthcheck probes TCP (not the initdb socket)
+        run: |
+          set -euo pipefail
+          pip install -q pyyaml
+          chmod +x scripts/assert-postgres-healthcheck-tcp.sh
+          scripts/assert-postgres-healthcheck-tcp.sh
