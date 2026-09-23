@@ -11,7 +11,7 @@
 #   iam                sha-3cbe20c
 #   admin-api          sha-3aaba81
 #   audit-logs         sha-2a150cc
-#   gateway            sha-5b49c67
+#   gateway            sha-6fb4e73
 #
 # Ubuntu docker.io 29 has no compose plugin. `compose.sh pull --quiet` is parsed
 # as `docker --quiet` → tetrix_registry_pull_failed. Cloud guests get compose-v2
@@ -58,7 +58,7 @@ required_env = (
     ("ADMIN_API_IMAGE_TAG=sha-3aaba81", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-3aaba81", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-3aaba81", "UPDATER_IMAGE_TAG"),
-    ("GATEWAY_IMAGE_TAG=sha-5b49c67", "GATEWAY_IMAGE_TAG"),
+    ("GATEWAY_IMAGE_TAG=sha-6fb4e73", "GATEWAY_IMAGE_TAG"),
 )
 for needle, label in required_env:
     if needle not in env:
@@ -71,7 +71,7 @@ required_compose = (
     (":-sha-2a150cc}", "audit-logs"),
     (":-sha-f79f7e0}", "collectors"),
     (":-sha-3aaba81}", "admin-api/licensing/updater"),
-    (":-sha-5b49c67}", "gateway"),
+    (":-sha-6fb4e73}", "gateway"),
 )
 for needle, label in required_compose:
     if needle not in compose:

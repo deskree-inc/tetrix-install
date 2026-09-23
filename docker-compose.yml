@@ -641,7 +641,7 @@ services:
     # route's precondition and the two must move together. Same tag, same reason
     # as the k8s side (values.yaml gateway.image.tag, verified at the artifact);
     # the previous default here, sha-222cb23, predates the handler.
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-api-gateway:${GATEWAY_IMAGE_TAG:-sha-5b49c67}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-api-gateway:${GATEWAY_IMAGE_TAG:-sha-6fb4e73}
     env_file: .env
     depends_on:
       daemon:
