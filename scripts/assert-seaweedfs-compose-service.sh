@@ -33,7 +33,6 @@ docker info >/dev/null 2>&1 || { echo "ERROR: the docker daemon is not reachable
 docker compose version >/dev/null 2>&1 || { echo "ERROR: 'docker compose' is required" >&2; exit 1; }
 
 PROJECT="swassert$$"
-MC_IMAGE="quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z"
 ENVFILE="${COMPOSE_DIR}/.env"
 # Written into the file this assert creates, so a leftover from a crashed run is
 # distinguishable from an operator's real .env. Without it the "do not clobber"
@@ -136,14 +135,26 @@ fi
 # running this against one would turn an outage into a passing security
 # assertion — and "Access Denied" and "could not connect" are both just a failed
 # list to a naive match.
+#
+# The probe is an UNSIGNED S3 ListObjects (a plain GET on the bucket) sent from a
+# sibling container on the project network, using the service's OWN image (so
+# nothing extra is pulled: this used quay.io/minio/mc until that image stopped
+# being publicly pullable, which turned this check red for every PR with an
+# empty "Got:"). A closed store answers 403 (S3 AccessDenied); an open one lists
+# the bucket (200) or says NoSuchBucket (404). A probe that could not run at all
+# is reported as that, never as either verdict.
 if [ "$healthy" = "1" ]; then
-  anon="$(docker run --rm --network "${PROJECT}_default" --entrypoint sh "$MC_IMAGE" -c \
-    'mc alias set anon http://seaweedfs:8333 "" "" >/dev/null 2>&1; mc ls anon/tetrix-objects 2>&1' 2>/dev/null)"
+  sw_cid="$(dc ps -q seaweedfs 2>/dev/null | head -1)"
+  sw_image="$(docker inspect -f '{{.Config.Image}}' "$sw_cid" 2>/dev/null)"
+  anon="$(docker run --rm --network "${PROJECT}_default" --entrypoint sh "$sw_image" -c \
+    'wget -S -O- http://seaweedfs:8333/tetrix-objects 2>&1; echo "probe-exit=$?"' 2>&1)"
   case "$anon" in
-    *"Access Denied"*|*"AccessDenied"*)
-      ok "an anonymous S3 request is refused by the running service" ;;
+    *"403 Forbidden"*|*"AccessDenied"*|*"Access Denied"*)
+      ok "an anonymous S3 request is refused by the running service (403)" ;;
+    *"probe-exit="*)
+      bad "an anonymous S3 request was NOT refused by the running service — the object store is open. Got: $(printf '%s' "$anon" | tr '\n' ' ' | cut -c1-300)" ;;
     *)
-      bad "an anonymous S3 request was NOT refused by the running service — the object store is open. Got: ${anon}" ;;
+      bad "the anonymous S3 probe could not run (image ${sw_image:-?}); this proves nothing about the store. Got: $(printf '%s' "$anon" | tr '\n' ' ' | cut -c1-300)" ;;
   esac
 else
   bad "anonymous access was NOT checked: the service never came up, so this proves nothing about whether the store is closed"
