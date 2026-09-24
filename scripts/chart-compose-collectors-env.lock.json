@@ -1,0 +1,55 @@
+{
+  "_what": "The Helm chart's deploy/docker values for the collectors keys scripts/assert-chart-compose-collectors-env.sh gates (tetrix-install#51). Written by that script with --update-lock; do not hand-edit expected/env_example. service_map: chart service name -> this repo's service name (null = not shipped here).",
+  "chart_repo": "deskree-inc/tetrix-ee-helm-chart",
+  "chart_path": "deploy/docker/docker-compose.yml",
+  "chart_env_example_path": "deploy/docker/.env.example",
+  "chart_ref": "feat/396-shared-identity-salt",
+  "chart_commit": "8c6878afeed1cc99e1ef17f6522c40426106712b",
+  "chart_version": "1.0.8",
+  "service_map": {
+    "collectors-api": "collectors-api",
+    "collectors-mcp": "collectors-mcp",
+    "collectors-dispatcher": "collectors-dispatcher",
+    "collectors-worker": "collectors-worker",
+    "collectors-healthcheck": "collectors-healthcheck",
+    "collectors-hitl": "collectors-hitl",
+    "collectors-identity-consumer": "collectors-identity-consumer",
+    "collectors-session-consumer": "collectors-session-consumer",
+    "collectors-migrate": "collectors-migrate"
+  },
+  "expected": {
+    "collectors-api": {
+      "TETRIX_API_SERVICE_READYZ_URLS": "${COLLECTORS_API_SERVICE_READYZ_URLS:-{\"api\":\"http://collectors-api:8080/readyz\",\"dispatcher\":\"http://collectors-dispatcher:9090/readyz\",\"mcp\":\"http://collectors-mcp:9090/readyz\",\"worker\":\"http://collectors-worker:9090/readyz\"}}",
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-mcp": {
+      "TETRIX_MCP_API_BASE_URL": "${COLLECTORS_MCP_API_BASE_URL:-http://collectors-api:8080}",
+      "TETRIX_MCP_API_TIMEOUT_S": "${COLLECTORS_MCP_API_TIMEOUT_S:-6}",
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-dispatcher": {
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-worker": {
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-healthcheck": {
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-hitl": {
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-identity-consumer": {
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    },
+    "collectors-session-consumer": {
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+    }
+  },
+  "env_example": {
+    "COLLECTORS_MCP_API_BASE_URL": "http://collectors-api:8080",
+    "COLLECTORS_MCP_API_TIMEOUT_S": "6",
+    "COLLECTORS_API_SERVICE_READYZ_URLS": "{\"api\":\"http://collectors-api:8080/readyz\",\"dispatcher\":\"http://collectors-dispatcher:9090/readyz\",\"mcp\":\"http://collectors-mcp:9090/readyz\",\"worker\":\"http://collectors-worker:9090/readyz\"}",
+    "TETRIX_IDENTITY_SALT": ""
+  }
+}
