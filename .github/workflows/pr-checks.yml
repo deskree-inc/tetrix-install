@@ -51,6 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/assert-seaweedfs-compose-service.sh scripts/object-store-preflight.sh
+          scripts/assert-seaweedfs-compose-service.sh --self-test
           scripts/assert-seaweedfs-compose-service.sh
 
       # Static guard for #48: the postgres healthcheck must probe TCP (-h), not the
@@ -62,3 +63,21 @@ jobs:
           pip install -q pyyaml
           chmod +x scripts/assert-postgres-healthcheck-tcp.sh
           scripts/assert-postgres-healthcheck-tcp.sh
+
+      # tetrix-install#51: this compose is hand-maintained, and chart 1.0.6-1.0.8 added
+      # TETRIX_MCP_API_BASE_URL, the four-entry TETRIX_API_SERVICE_READYZ_URLS map (+ 6 s MCP
+      # timeout) and one shared TETRIX_IDENTITY_SALT to the chart's deploy/docker without any of it
+      # reaching this file. The gate compares those keys, per service, with the chart values
+      # recorded in scripts/chart-compose-collectors-env.lock.json and checks the invariants they
+      # exist for. The self-test first proves it fails on each drift. With a CHART_REPO_READ_TOKEN
+      # secret (read access to the private chart repo) it also re-reads the chart at the locked ref
+      # and fails on a stale lock; without one it checks the lock only and says so.
+      - name: Collectors env matches the chart's deploy/docker (MCP base URL, readyz map, timeout, identity salt)
+        env:
+          GH_TOKEN: ${{ secrets.CHART_REPO_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          pip install -q pyyaml
+          chmod +x scripts/assert-chart-compose-collectors-env.sh
+          scripts/assert-chart-compose-collectors-env.sh --self-test
+          scripts/assert-chart-compose-collectors-env.sh

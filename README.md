@@ -232,6 +232,24 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
+**Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
+same one from `.env` (empty by default = unsalted, as every compose install has
+run so far). Leave it empty on an existing install that holds admin-mapped
+emails: setting it re-keys every stored email hash (the hash is one-way, so
+those mappings must be re-entered). For a **new** install, set it once
+(`openssl rand -hex 32`) before the first `up`.
+
+**Keeping this compose in step with the Helm chart.** This `docker-compose.yml`
+is maintained by hand next to the chart's own Compose twin. For the collectors
+platform-health and identity keys (`TETRIX_MCP_API_BASE_URL`,
+`TETRIX_API_SERVICE_READYZ_URLS`, `TETRIX_MCP_API_TIMEOUT_S`,
+`TETRIX_IDENTITY_SALT`) CI fails when the two drift:
+`scripts/assert-chart-compose-collectors-env.sh` compares them with the chart
+values recorded in `scripts/chart-compose-collectors-env.lock.json`. After
+mirroring a chart change, refresh the lock with
+`scripts/assert-chart-compose-collectors-env.sh --chart-ref vX.Y.Z --update-lock`
+(needs read access to the chart repository).
+
 ---
 
 ## Troubleshooting

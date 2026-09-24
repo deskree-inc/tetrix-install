@@ -24,6 +24,16 @@ x-collectors-env: &collectors-env
   TETRIX_MCP_SEEDED_ACCOUNT: ${COLLECTORS_SERVING_ACCOUNT:-tetrix-demo}
   SIDECAR_PORT: "9090"
   TETRIX_CONTROL_PLANE_DSN: postgresql+asyncpg://control_plane:${CONTROL_PLANE_DB_PASSWORD}@postgres:5432/control_plane
+  # chart#396 / collectors#971: the ONE identity salt. Every pseudonymized email is
+  # sha256(salt + email), and the API, worker, dispatcher, mcp and the consumers must all use
+  # the same one, or every admin-mapped email silently stops linking. It lives HERE, in the
+  # shared anchor, so no service can drift; never set it on a single service's environment.
+  # EMPTY BY DEFAULT = unsalted, as every compose install has run so far. Setting it on a stack
+  # that already holds identity data re-keys every stored email hash (admin-mapped emails must
+  # be re-entered; the hash is one-way). Set TETRIX_IDENTITY_SALT in .env BEFORE the first
+  # `up` for a new install. Same name as the container variable, so a value already in .env
+  # keeps winning. Twin of values collectors.identitySalt.
+  TETRIX_IDENTITY_SALT: ${TETRIX_IDENTITY_SALT:-}
   # Keycloak additive override: mode stays "logto"; ISSUER+JWKS_URL repoint verification.
   TETRIX_API_AUTH_MODE: logto
   TETRIX_API_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_API}
@@ -1072,6 +1082,10 @@ services:
       EXPLORE_LLM_PROVIDER: ${EXPLORE_LLM_PROVIDER:-anthropic}
       EXPLORE_LLM_MODEL: ${EXPLORE_LLM_MODEL:-claude-haiku-4-5-20251001}
       EXPLORE_RATE_LIMIT_PER_HOUR: ${EXPLORE_RATE_LIMIT_PER_HOUR:-60}
+      # chart#393 (collectors#761): the services the API's /health/services aggregate probes,
+      # one row each in the MCP `platform_versions` answer. Twin of values
+      # collectors.api.serviceReadyz; override the whole map with COLLECTORS_API_SERVICE_READYZ_URLS.
+      TETRIX_API_SERVICE_READYZ_URLS: '${COLLECTORS_API_SERVICE_READYZ_URLS:-{"api":"http://collectors-api:8080/readyz","dispatcher":"http://collectors-dispatcher:9090/readyz","mcp":"http://collectors-mcp:9090/readyz","worker":"http://collectors-worker:9090/readyz"}}'
     command: ["api"]
     ports:
       - "${TETRIX_BIND_ADDRESS:-0.0.0.0}:8080:8080"
@@ -1101,6 +1115,13 @@ services:
       <<: *collectors-env
       TETRIX_MCP_PORT: "8090"
       TETRIX_MCP_SIDECAR_PORT: "9090"
+      # collectors#761 layer 3 (chart#354): the API whose /health/services aggregate the MCP
+      # `platform_versions` tool reads. Unset, the tool answers "not configured".
+      TETRIX_MCP_API_BASE_URL: ${COLLECTORS_MCP_API_BASE_URL:-http://collectors-api:8080}
+      # 6 s, not the collectors default of 3 s: with probes registered, one unresponsive
+      # service holds the aggregate ~4 s (2 s /readyz + 2 s /healthz). Twin of
+      # values collectors.mcp.apiTimeoutSeconds.
+      TETRIX_MCP_API_TIMEOUT_S: ${COLLECTORS_MCP_API_TIMEOUT_S:-6}
     command: ["mcp"]
     ports:
       - "${TETRIX_BIND_ADDRESS:-0.0.0.0}:8090:8090"

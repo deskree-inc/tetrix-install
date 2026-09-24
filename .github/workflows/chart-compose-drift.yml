@@ -1,0 +1,36 @@
+# Weekly: does the Helm chart's deploy/docker still carry the collectors values this repo's
+# docker-compose.yml locked (scripts/chart-compose-collectors-env.lock.json)? pr-checks only runs
+# when THIS repo changes; the chart changes elsewhere. This is the half that notices the chart
+# moving on (tetrix-install#51).
+#
+# Needs the CHART_REPO_READ_TOKEN secret (a token with contents:read on
+# deskree-inc/tetrix-ee-helm-chart). Without it the job warns and passes: it cannot see the chart,
+# and a red job nobody can fix from here is noise.
+name: Chart compose drift
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Collectors env vs chart deploy/docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare against the live chart at the locked ref
+        env:
+          GH_TOKEN: ${{ secrets.CHART_REPO_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::CHART_REPO_READ_TOKEN is not set; the live chart cannot be read. Only the lock was checked (by pr-checks)."
+            exit 0
+          fi
+          pip install -q pyyaml
+          chmod +x scripts/assert-chart-compose-collectors-env.sh
+          scripts/assert-chart-compose-collectors-env.sh --require-chart
