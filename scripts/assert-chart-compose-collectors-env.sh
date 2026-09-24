@@ -512,7 +512,7 @@ def main(argv):
         chart = load_chart_dir(a.chart_dir, ref, lock) if a.chart_dir else load_chart_gh(ref, lock)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         detail = getattr(exc, "stderr", None) or str(exc)
-        why = detail.strip().splitlines()[-1] if detail.strip() else type(exc).__name__
+        why = detail.strip().splitlines()[0] if detail.strip() else type(exc).__name__
     if chart is None:
         msg = (f"chart {lock['chart_repo']}@{ref} is not readable here ({why}); checked against the lock "
                f"recorded from {lock['chart_ref']} @ {lock['chart_commit'][:12]} (chart {lock['chart_version']}) only")
