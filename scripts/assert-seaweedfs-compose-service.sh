@@ -28,6 +28,101 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_DIR="${ROOT}"
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 [ -f "$COMPOSE_FILE" ] || { echo "ERROR: ${COMPOSE_FILE} is missing" >&2; exit 1; }
+
+# ── The anonymous-S3 verdict ─────────────────────────────────────────────────
+# anon_probe <network> <image> <url> [sh prefix]: an UNSIGNED S3 ListObjects (a
+# plain GET on the bucket) from a throwaway container, with busybox `wget -S` so
+# the HTTP status line is printed even on an error status. The last line is
+# always `probe-exit=<wget's exit>` once the container ran.
+anon_probe() {
+  docker run --rm --network "$1" --entrypoint sh "$2" -c \
+    "${4:-:}; wget -S -O- '$3' 2>&1; echo \"probe-exit=\$?\"" 2>&1
+}
+
+# classify_anon_probe <transcript> -> closed | open | could-not-run
+# The verdict is taken from the HTTP status the SERVER sent, never from the mere
+# fact that the probe container ran: busybox wget exits 1 on ANY error status
+# (403 and 404 alike) and also on "bad address" / "Connection refused", and the
+# shell exits 127 when wget is missing, so the exit code alone cannot tell a
+# closed store from an open one or from no answer at all.
+#   403 (S3 AccessDenied)                    -> closed
+#   404 (NoSuchBucket), or 2xx with exit 0   -> open (the anonymous call was served)
+#   no status line, any other status, no
+#   probe-exit marker (docker run failed)    -> could-not-run: neither verdict
+classify_anon_probe() {
+  local out="$1" exitcode status
+  exitcode="$(printf '%s\n' "$out" | sed -n 's/^probe-exit=\([0-9][0-9]*\)$/\1/p' | tail -1)"
+  [ -n "$exitcode" ] || { echo could-not-run; return; }
+  status="$(printf '%s\n' "$out" | grep -oE 'HTTP/1\.[01] [0-9]{3}' | tail -1 | awk '{print $2}')"
+  case "$status" in
+    403) echo closed ;;
+    404) echo open ;;
+    2??) if [ "$exitcode" = "0" ]; then echo open; else echo could-not-run; fi ;;
+    "")
+      # No status line: only a body can still decide (another client's output shape).
+      case "$out" in
+        *AccessDenied*|*"Access Denied"*) echo closed ;;
+        *NoSuchBucket*) echo open ;;
+        *) echo could-not-run ;;
+      esac ;;
+    *) echo could-not-run ;;
+  esac
+}
+
+# --self-test: the classifier on the transcripts each outcome really produces
+# (captured from chrislusf/seaweedfs:4.47's busybox wget), then — when a docker
+# daemon is reachable — the two "could not run" cases for real: wget missing,
+# and a connection refused.
+if [ "${1:-}" = "--self-test" ]; then
+  st_pass=0; st_fail=0
+  expect() { # expect <want> <name> <transcript>
+    local got; got="$(classify_anon_probe "$3")"
+    if [ "$got" = "$1" ]; then echo "  OK: $2 -> $got"; st_pass=$((st_pass+1))
+    else echo "  FAIL: $2 -> $got (want $1)"; st_fail=$((st_fail+1)); fi
+  }
+  expect closed "403 AccessDenied (closed store)" "Connecting to seaweedfs:8333 (172.18.0.2:8333)
+  HTTP/1.1 403 Forbidden
+  Content-Type: application/xml
+wget: server returned error: HTTP/1.1 403 Forbidden
+probe-exit=1"
+  expect open "404 NoSuchBucket (open store, bucket absent)" "Connecting to seaweedfs:8333 (172.18.0.2:8333)
+  HTTP/1.1 404 Not Found
+wget: server returned error: HTTP/1.1 404 Not Found
+probe-exit=1"
+  expect open "200 ListBucketResult (open store)" "Connecting to seaweedfs:8333 (172.18.0.2:8333)
+  HTTP/1.1 200 OK
+writing to stdout
+<ListBucketResult><Name>tetrix-objects</Name></ListBucketResult>
+probe-exit=0"
+  expect could-not-run "wget missing" "sh: wget: not found
+probe-exit=127"
+  expect could-not-run "connection refused" "Connecting to seaweedfs:8333 (172.18.0.2:8333)
+wget: can't connect to remote host (172.18.0.2): Connection refused
+probe-exit=1"
+  expect could-not-run "name does not resolve" "wget: bad address 'seaweedfs:8333'
+probe-exit=1"
+  expect could-not-run "5xx from the gateway" "  HTTP/1.1 503 Service Unavailable
+wget: server returned error: HTTP/1.1 503 Service Unavailable
+probe-exit=1"
+  expect could-not-run "docker run itself failed (no probe-exit marker)" "Unable to find image 'x:y' locally
+docker: Error response from daemon: pull access denied"
+  expect could-not-run "empty output" ""
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    # The image the compose service defaults to, read from the file (config --images needs a .env).
+    st_image="$(sed -n 's/^ *image: *\(chrislusf\/seaweedfs\):\${SEAWEEDFS_IMAGE_TAG:-\([^}]*\)}.*/\1:\2/p' "$COMPOSE_FILE" | head -1)"
+    [ -n "$st_image" ] || { echo "  FAIL: cannot read the seaweedfs image from ${COMPOSE_FILE}"; exit 1; }
+    docker pull -q "$st_image" >/dev/null 2>&1 || true
+    expect could-not-run "live: wget missing ($st_image)" \
+      "$(anon_probe none "$st_image" http://127.0.0.1:8333/tetrix-objects 'PATH=/nonexistent')"
+    expect could-not-run "live: connection refused ($st_image)" \
+      "$(anon_probe none "$st_image" http://127.0.0.1:8333/tetrix-objects)"
+  else
+    echo "  note: no docker daemon; the two live cases were not run"
+  fi
+  echo "self-test: ${st_pass} passed, ${st_fail} failed"
+  [ "$st_fail" -eq 0 ] || exit 1
+  exit 0
+fi
 command -v docker >/dev/null 2>&1 || { echo "ERROR: docker is required" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "ERROR: the docker daemon is not reachable" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "ERROR: 'docker compose' is required" >&2; exit 1; }
@@ -136,25 +231,24 @@ fi
 # assertion — and "Access Denied" and "could not connect" are both just a failed
 # list to a naive match.
 #
-# The probe is an UNSIGNED S3 ListObjects (a plain GET on the bucket) sent from a
-# sibling container on the project network, using the service's OWN image (so
-# nothing extra is pulled: this used quay.io/minio/mc until that image stopped
-# being publicly pullable, which turned this check red for every PR with an
-# empty "Got:"). A closed store answers 403 (S3 AccessDenied); an open one lists
-# the bucket (200) or says NoSuchBucket (404). A probe that could not run at all
-# is reported as that, never as either verdict.
+# The probe (anon_probe above) runs from a sibling container on the project
+# network, using the service's OWN image, so nothing extra is pulled: this used
+# quay.io/minio/mc until that image stopped being publicly pullable, which turned
+# this check red for every PR with an empty "Got:". classify_anon_probe decides
+# from the server's HTTP status; a probe that got no answer is neither verdict
+# (and still fails this assert).
 if [ "$healthy" = "1" ]; then
   sw_cid="$(dc ps -q seaweedfs 2>/dev/null | head -1)"
   sw_image="$(docker inspect -f '{{.Config.Image}}' "$sw_cid" 2>/dev/null)"
-  anon="$(docker run --rm --network "${PROJECT}_default" --entrypoint sh "$sw_image" -c \
-    'wget -S -O- http://seaweedfs:8333/tetrix-objects 2>&1; echo "probe-exit=$?"' 2>&1)"
-  case "$anon" in
-    *"403 Forbidden"*|*"AccessDenied"*|*"Access Denied"*)
+  anon="$(anon_probe "${PROJECT}_default" "$sw_image" http://seaweedfs:8333/tetrix-objects)"
+  anon_flat="$(printf '%s' "$anon" | tr '\n' ' ' | cut -c1-300)"
+  case "$(classify_anon_probe "$anon")" in
+    closed)
       ok "an anonymous S3 request is refused by the running service (403)" ;;
-    *"probe-exit="*)
-      bad "an anonymous S3 request was NOT refused by the running service — the object store is open. Got: $(printf '%s' "$anon" | tr '\n' ' ' | cut -c1-300)" ;;
+    open)
+      bad "an anonymous S3 request was NOT refused by the running service — the object store is open. Got: ${anon_flat}" ;;
     *)
-      bad "the anonymous S3 probe could not run (image ${sw_image:-?}); this proves nothing about the store. Got: $(printf '%s' "$anon" | tr '\n' ' ' | cut -c1-300)" ;;
+      bad "the anonymous S3 probe got no usable answer (image ${sw_image:-?}); this proves nothing about the store either way. Got: ${anon_flat}" ;;
   esac
 else
   bad "anonymous access was NOT checked: the service never came up, so this proves nothing about whether the store is closed"
