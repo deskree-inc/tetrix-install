@@ -179,7 +179,7 @@ fi
 # in POLICY, so read the long explanation there. In one paragraph: this used to write ONE
 # policy granting create/read/update/delete over "${KV_MOUNT}/data/*" — every tenant AND
 # platform/* — and hand the resulting non-expiring token to every collector. MEASURED on
-# hashicorp/vault:1.21.4: cross-tenant read and WRITE both succeeded, platform read succeeded,
+# hashicorp/vault:1.21.4 / openbao/openbao:2.6.2 (CLI contracts match): cross-tenant read and WRITE both succeeded, platform read succeeded,
 # and `kv list ${KV_MOUNT}/tenants/` enumerated the customer list.
 #
 # Swapping in the narrow policies alone would have been WORSE: they are templated on the
@@ -239,7 +239,7 @@ EOF
 # the token/ object nests a `config` object, so a positional sed silently matched nothing —
 # which is why this is checked for emptiness immediately below instead of being trusted.
 # Exactly one token auth mount can exist, so the prefix is unambiguous. No jq/python in the
-# hashicorp/vault image; tr+grep+sed only.
+# openbao/openbao image (vault → bao symlink); tr+grep+sed only.
 TOKEN_ACCESSOR=$(vault auth list -format=json | tr -d " \n" |
   grep -o '"accessor":"auth_token_[^"]*"' | head -n 1 | sed 's/.*:"//; s/"$//')
 [ -n "$TOKEN_ACCESSOR" ] || {
@@ -304,14 +304,14 @@ fi
 # was dead and EVERY run minted a new generation of all three brokers. Compose reads
 # `env_file` when it PARSES the project, so the containers were then permanently one
 # generation behind the file (and, on a fresh install, held no token at all). MEASURED in
-# this container on hashicorp/vault:1.21.4: `vault token renew-self` -> rc 1 (usage);
+# this container on openbao/openbao:2.6.2 (same as Vault 1.21.4): `vault token renew-self` -> rc 1 (usage);
 # `vault write -f auth/token/renew-self` as a broker -> rc 2, 403 (the brokers are minted
 # -no-default-policy, and renew-self is a default-policy grant).
 #
 # The probe runs on the ROOT token this script already exported (line 63) and asserts three
 # things, in this order:
 #   1. NON-EMPTY — see the guard below. It is the FIRST of three independent layers that each
-#      refuse a blank, not the only one: MEASURED on hashicorp/vault:1.21.4, `vault token
+#      refuse a blank, not the only one: MEASURED on openbao/openbao:2.6.2, `vault token
 #      lookup ""` self-looks-up as ROOT and exits 0 (so a lookup-only probe WOULD keep a blank),
 #      but `vault token renew ""` exits 2 and the policy check below cannot match. Verified by
 #      building the mutant: with the guard AND the policy check removed, a blanked token is
@@ -330,7 +330,7 @@ fi
 keep_broker_token() { # $1 = token value, $2 = the policy it must carry
   # LOAD-BEARING, NOT DECORATION: `vault token lookup ""` does NOT fail. The real CLI falls
   # back to a SELF-lookup — and at this point in the script that self is the ROOT token — so it
-  # exits 0 (MEASURED on hashicorp/vault:1.21.4). Without this guard a blank or unset variable
+  # exits 0 (MEASURED on openbao/openbao:2.6.2). Without this guard a blank or unset variable
   # therefore "validates" and is KEPT. Measured against a probe with this guard and the policy
   # check both removed: a blanked COLLECTORS_VAULT_TOKEN printed "existing collectors broker
   # token renewed — keeping it" and an EMPTY token was written to runtime/vault.env, so the

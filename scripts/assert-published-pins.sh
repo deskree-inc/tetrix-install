@@ -3,13 +3,13 @@
 #
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
-# (also unpublished). Current pins match Helm 1.0.2 (latest published sha-):
+# (also unpublished). Current pins match Helm 1.1.2 (the trio moved sha-3aaba81 -> sha-7927db5 at 1.1.2):
 #   daemon/remote      sha-8cf650a
-#   licensing/updater  sha-3aaba81  (do not republish 8b99820c)
+#   licensing/updater  sha-7927db5  (do not republish 8b99820c)
 #   collectors         sha-f79f7e0
 #   frontend           sha-078f757
 #   iam                sha-3cbe20c
-#   admin-api          sha-3aaba81
+#   admin-api          sha-7927db5
 #   audit-logs         sha-2a150cc
 #   gateway            sha-6fb4e73
 #
@@ -55,14 +55,14 @@ required_env = (
     ("FRONTEND_IMAGE_TAG=sha-078f757", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
     ("COLLECTORS_IMAGE_TAG=sha-f79f7e0", "COLLECTORS_IMAGE_TAG"),
-    ("ADMIN_API_IMAGE_TAG=sha-3aaba81", "ADMIN_API_IMAGE_TAG"),
-    ("LICENSING_IMAGE_TAG=sha-3aaba81", "LICENSING_IMAGE_TAG"),
-    ("UPDATER_IMAGE_TAG=sha-3aaba81", "UPDATER_IMAGE_TAG"),
+    ("ADMIN_API_IMAGE_TAG=sha-7927db5", "ADMIN_API_IMAGE_TAG"),
+    ("LICENSING_IMAGE_TAG=sha-7927db5", "LICENSING_IMAGE_TAG"),
+    ("UPDATER_IMAGE_TAG=sha-7927db5", "UPDATER_IMAGE_TAG"),
     ("GATEWAY_IMAGE_TAG=sha-6fb4e73", "GATEWAY_IMAGE_TAG"),
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.0.2)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.2)")
 
 required_compose = (
     (":-sha-8cf650a}", "daemon/remote"),
@@ -70,7 +70,7 @@ required_compose = (
     (":-sha-078f757}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
     (":-sha-f79f7e0}", "collectors"),
-    (":-sha-3aaba81}", "admin-api/licensing/updater"),
+    (":-sha-7927db5}", "admin-api/licensing/updater"),
     (":-sha-6fb4e73}", "gateway"),
 )
 for needle, label in required_compose:
@@ -97,6 +97,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.0.2 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.2 published tags and does not pass --quiet"
 fi
 exit "$fail"

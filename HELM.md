@@ -218,7 +218,7 @@ Set `collectors.enabled=false` for a lean daemon-only install.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `vault.enabled` | `true` | Bundled HashiCorp Vault, initialized automatically. |
+| `vault.enabled` | `true` | Bundled secrets engine (OpenBao 2.6.2 from chart 1.1.0; HashiCorp Vault before), initialized automatically. |
 | `collectors.vault.addr` | *(empty)* | Point collectors at a vault you already operate. |
 | `frontend.enabled` | `true` | Web application. |
 | `frontend.replicas` | `2` | Replicas. |
