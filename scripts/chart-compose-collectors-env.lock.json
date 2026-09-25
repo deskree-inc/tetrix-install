@@ -3,9 +3,9 @@
   "chart_repo": "deskree-inc/tetrix-ee-helm-chart",
   "chart_path": "deploy/docker/docker-compose.yml",
   "chart_env_example_path": "deploy/docker/.env.example",
-  "chart_ref": "feat/396-shared-identity-salt",
-  "chart_commit": "8c6878afeed1cc99e1ef17f6522c40426106712b",
-  "chart_version": "1.0.8",
+  "chart_ref": "v1.1.2",
+  "chart_commit": "1a9c107f43183356f1921586200ae32b6660c6f1",
+  "chart_version": "1.1.2",
   "service_map": {
     "collectors-api": "collectors-api",
     "collectors-mcp": "collectors-mcp",
