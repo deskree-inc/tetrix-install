@@ -4,15 +4,12 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **0.8.56**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)).
-This tree's `VERSION` is **0.8.71** (Cloud guest: compose Vault writes
-`VAULT_LOCAL_CONFIG` to `/tmp` only and `setsid`-isolates `vault server`
-so Docker/compose HUP cannot reach 1.21.4 — `vaulthup31aug` still
-`vault_exit=139` after 0.8.70 wrote `/vault/config`). First-party `sha-`
-pins stay at chart 0.8.56. The Helm OCI chart remains **0.8.54** (latest
-published chart). A public `v0.8.71` Release is required before ops can
-finalize that lock.
+Latest published release: **1.0.5**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.0.5)).
+This tree's `VERSION` is **1.1.2**: the bundled secrets engine is OpenBao 2.6.2
+(chart 1.1.0, ADR-0039; it adopts the existing `vault-data` volume in place) and
+the admin-api/licensing/updater trio is `sha-7927db5` (chart 1.1.2). A public
+`v1.1.2` Release is required before ops can finalize that lock.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo

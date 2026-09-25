@@ -266,7 +266,8 @@ services:
     restart: unless-stopped
 
   # ── Vault (collectors credentials) ──────────────────────────────────────────
-  # hashicorp/vault runs as uid 100:gid 1000; named volumes are root-owned by default.
+  # openbao/openbao runs as uid 100:gid 1000 (as hashicorp/vault did); named volumes are
+  # root-owned by default.
   vault-perms:
     image: busybox:1.37
     user: "0:0"
@@ -276,35 +277,28 @@ services:
     restart: "no"
 
   vault:
-    image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
+    # OpenBao (ADR-0039, chart 1.1.0). The image provides /usr/bin/vault → bao, so every
+    # `vault` CLI call in this file and in scripts/vault-*.sh is unchanged. It adopts the
+    # existing vault-data volume in place (file storage + the Shamir unseal key in
+    # runtime/vault.env); rolling back is reverting this image line. Snapshot the
+    # vault-data volume before the upgrade.
+    image: openbao/openbao:${VAULT_IMAGE_TAG:-2.6.2}
     depends_on:
       vault-perms:
         condition: service_completed_successfully
     user: "100:1000"
     environment:
-      # disable_mlock: this Vault runs as uid 100:1000 with SKIP_SETCAP=true, so the
-      # IPC_LOCK capability below is NOT effective — cap_add grants a capability only
-      # to root or to a binary carrying file capabilities, and SKIP_SETCAP disables
-      # exactly that setcap step. The process therefore falls back to the memlock
-      # ulimit. Docker Desktop's VM is unlimited, which is why this never bit there;
-      # Linux Docker Engine defaults to 8 MiB (`docker run --rm busybox sh -c
-      # 'ulimit -l'` prints 8192) and Vault exits a few hundred ms after "Started"
-      # with the mlock syscall message, leaving 127.0.0.1:8200 unanswered and every
-      # Vault-dependent service — vault-init, collectors-api, collectors-worker —
-      # waiting. The Helm chart sets this for the same image
-      # (templates/vault-statefulset.yaml) and the chart repo's compose twin has had
-      # it since chart 0.8.59. Do not remove it.
-      VAULT_LOCAL_CONFIG: |
-        {"storage":{"file":{"path":"/vault/data"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}},"disable_mlock":true,"ui":false}
-      SKIP_SETCAP: "true"
+      # The OpenBao entrypoint reads BAO_LOCAL_CONFIG only: VAULT_LOCAL_CONFIG is ignored and
+      # the server then fails with no storage backend. No disable_mlock (OpenBao 2.0 removed
+      # mlock) and no SKIP_SETCAP (the image does no setcap). Same config as the Helm chart's
+      # templates/vault-statefulset.yaml and its compose twin.
+      BAO_LOCAL_CONFIG: |
+        {"storage":{"file":{"path":"/vault/data"}},"listener":{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}},"ui":false}
     command: ["server"]
     volumes:
       - vault-data:/vault/data
     cap_add:
       - IPC_LOCK
-    # Belt to disable_mlock's braces: should a future config ever drop
-    # disable_mlock, an unlimited memlock keeps the syscall available instead of
-    # reintroducing a silent restart loop.
     ulimits:
       memlock:
         soft: -1
@@ -334,7 +328,7 @@ services:
     # a self-hosted install lands the files as the operator and Cloud keeps the
     # root behaviour it has always had. Do not hard-code 1000 here.
     user: "${TETRIX_UID:-0}:${TETRIX_GID:-0}"
-    image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
+    image: openbao/openbao:${VAULT_IMAGE_TAG:-2.6.2}
     depends_on:
       vault:
         condition: service_started
@@ -344,7 +338,6 @@ services:
       EXISTING_ENV: /out/vault.env
       VAULT_KV_MOUNT: secret
       VAULT_TOKEN_PERIOD: 768h
-      SKIP_SETCAP: "true"
       # Cloud: setup.sh / compose.sh export TETRIX_DEPLOYMENT_MODE=cloud; the
       # collectors token is interpolated from the tmpfs runtime.env (.env symlink).
       # Dev stays on the Shamir path (default). Distinct API/webhook brokers are
@@ -360,14 +353,13 @@ services:
     restart: "no"
 
   vault-unseal:
-    image: hashicorp/vault:${VAULT_IMAGE_TAG:-1.21.4}
+    image: openbao/openbao:${VAULT_IMAGE_TAG:-2.6.2}
     depends_on:
       vault-init:
         condition: service_completed_successfully
     environment:
       VAULT_ADDR: http://vault:8200
       VAULT_ENV_FILE: /vault-init/vault.env
-      SKIP_SETCAP: "true"
     volumes:
       - ./runtime:/vault-init:ro
       - ./scripts/vault-unseal.sh:/vault-unseal.sh:ro
@@ -562,7 +554,7 @@ services:
 
   # ── Core application ────────────────────────────────────────────────────────
   daemon:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-8cf650a}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-253966c}
     <<: *local-hosts
     env_file:
       - path: .env
@@ -610,7 +602,7 @@ services:
     restart: unless-stopped
 
   remote:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-8cf650a}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-253966c}
     <<: *local-hosts
     env_file:
       - path: .env
@@ -704,7 +696,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-078f757}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-415174c}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -714,7 +706,7 @@ services:
 
   # ── Admin API + Licensing ───────────────────────────────────────────────────
   licensing-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-3aaba81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-7927db5}
     env_file: .env
     depends_on:
       postgres-ensure-licensing:
@@ -725,7 +717,7 @@ services:
     restart: "no"
 
   licensing:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-3aaba81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-7927db5}
     env_file: .env
     depends_on:
       licensing-migrate:
@@ -781,7 +773,7 @@ services:
     restart: unless-stopped
 
   admin-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-3aaba81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-7927db5}
     env_file: .env
     depends_on:
       licensing:
@@ -863,7 +855,7 @@ services:
   # (README.md § Upgrades → 2) extracts the release bundle over the project with
   # `tar -xzf`, which restores docker-compose.yml and the service with it.
   updater:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-3aaba81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-7927db5}
     profiles: ["updater"]
     # Deliberately NO `env_file: .env` (unlike its siblings): nothing here is read
     # from the stack's secret env, and the fewer secrets in this container's
@@ -941,7 +933,7 @@ services:
       # pulled — a fresh Docker Hub pull, whose bytes are known to diverge from
       # the origin's (GHCR) for the same tetrix-updater tag. The `image:`-scoped
       # gates never see env values; scripts/assert-compose-origin-prefix.sh does.
-      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-3aaba81}
+      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-7927db5}
       # ── The fixed ops hook (Cloud M0.3, Tasks 8/9) ────────────────────────────
       # THIS IS WHAT CLOSES ADR-0022's KNOWN GAP. Compose rollback restores project
       # files and image pins but NOT database migrations, so a failed upgrade used
@@ -1029,7 +1021,7 @@ services:
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
   collectors-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -1040,7 +1032,7 @@ services:
     restart: "no"
 
   collectors-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     env_file:
       - path: .env
         required: true
@@ -1102,7 +1094,7 @@ services:
     restart: unless-stopped
 
   collectors-mcp:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1138,7 +1130,7 @@ services:
     restart: unless-stopped
 
   collectors-dispatcher:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1163,7 +1155,7 @@ services:
     restart: unless-stopped
 
   collectors-worker:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     env_file:
       - path: .env
         required: true
@@ -1225,7 +1217,7 @@ services:
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1276,7 +1268,7 @@ services:
   # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
   # wait-for-daemon init container.
   collectors-hitl:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1318,7 +1310,7 @@ services:
   # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1358,7 +1350,7 @@ services:
   # which is why `depends_on: daemon` is here — the Compose twin of the chart's
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f79f7e0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1c50594}
     env_file: .env
     depends_on:
       collectors-migrate:
