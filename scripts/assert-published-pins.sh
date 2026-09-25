@@ -3,11 +3,12 @@
 #
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
-# (also unpublished). Current pins match Helm 1.1.2 (the trio moved sha-3aaba81 -> sha-7927db5 at 1.1.2):
-#   daemon/remote      sha-8cf650a
+# (also unpublished). Current pins match Helm 1.1.2 (the trio moved sha-3aaba81 -> sha-7927db5;
+# daemon/remote, collectors and frontend moved to their latest main publishes):
+#   daemon/remote      sha-253966c
 #   licensing/updater  sha-7927db5  (do not republish 8b99820c)
-#   collectors         sha-f79f7e0
-#   frontend           sha-078f757
+#   collectors         sha-1c50594
+#   frontend           sha-415174c
 #   iam                sha-3cbe20c
 #   admin-api          sha-7927db5
 #   audit-logs         sha-2a150cc
@@ -50,11 +51,11 @@ for name, text, forbidden in (
             errors.append(f"{name} still pins unpublished {tag}")
 
 required_env = (
-    ("TETRIX_IMAGE_TAG=sha-8cf650a", "TETRIX_IMAGE_TAG"),
+    ("TETRIX_IMAGE_TAG=sha-253966c", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-3cbe20c", "KEYCLOAK_IMAGE_TAG"),
-    ("FRONTEND_IMAGE_TAG=sha-078f757", "FRONTEND_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-415174c", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-f79f7e0", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-1c50594", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-7927db5", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-7927db5", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-7927db5", "UPDATER_IMAGE_TAG"),
@@ -65,11 +66,11 @@ for needle, label in required_env:
         errors.append(f".env.example must pin {needle} (Helm 1.1.2)")
 
 required_compose = (
-    (":-sha-8cf650a}", "daemon/remote"),
+    (":-sha-253966c}", "daemon/remote"),
     (":-sha-3cbe20c}", "iam"),
-    (":-sha-078f757}", "frontend"),
+    (":-sha-415174c}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-f79f7e0}", "collectors"),
+    (":-sha-1c50594}", "collectors"),
     (":-sha-7927db5}", "admin-api/licensing/updater"),
     (":-sha-6fb4e73}", "gateway"),
 )
