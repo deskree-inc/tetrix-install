@@ -4,12 +4,11 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.0.5**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.0.5)).
+Latest published release: **1.1.2**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.2)).
 This tree's `VERSION` is **1.1.2**: the bundled secrets engine is OpenBao 2.6.2
 (chart 1.1.0, ADR-0039; it adopts the existing `vault-data` volume in place) and
-the admin-api/licensing/updater trio is `sha-7927db5` (chart 1.1.2). A public
-`v1.1.2` Release is required before ops can finalize that lock.
+the admin-api/licensing/updater trio is `sha-7927db5` (chart 1.1.2).
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
@@ -32,7 +31,7 @@ and does not call helm `OPS_RELEASE_FINALIZE_TOKEN`. Cutting a new public tag
 Images tagged `deskree/*` pull through **`registry.deskree.com`**, Deskree's
 pull-through proxy. The credential is minted from your `LICENSE_TOKEN` and is
 valid for **at most an hour**. Third-party images (PostgreSQL/pgvector, Neo4j,
-Meilisearch, SeaweedFS, Vault) keep their own public origins.
+Meilisearch, SeaweedFS, OpenBao) keep their own public origins.
 
 To evaluate **without** a license token, pull first-party images from Docker Hub
 instead (see each path below).
@@ -59,7 +58,7 @@ helm upgrade --install tetrix \
 ```
 
 Do **not** pass `--wait` or `--atomic` on a default install. Post-install hooks
-(schema, Keycloak, Vault) run after the main workloads; `--wait` blocks on
+(schema, Keycloak, OpenBao) run after the main workloads; `--wait` blocks on
 collectors becoming Ready before those hooks finish. Watch Jobs with
 `kubectl -n tetrix get jobs`.
 
@@ -258,7 +257,7 @@ mirroring a chart change, refresh the lock with
 | Blank UI / crypto errors | Re-run `./scripts/setup.sh` (fixes `/etc/hosts` + certs) |
 | `password authentication failed` | `docker compose down -v` then `./scripts/setup.sh` |
 | Keycloak not ready | `docker compose logs keycloak keycloak-provision` |
-| Collectors worker / Vault | `docker compose logs vault-init vault-unseal collectors-worker` |
+| Collectors worker / OpenBao | `docker compose logs vault-init vault-unseal collectors-worker` |
 | License paste fails with `unknown_kid` | Re-run `./scripts/setup.sh`, recreate `licensing`, then re-paste |
 | Setup fails fetching ops keys | Need network to `ops.deskree.com` |
 | `exec format error` / `Exited (255)` on frontend or collectors-* | Bundles up to 0.9.0 pinned those services to `linux/arm64`; on an x86-64 host without QEMU binfmt they cannot start. Upgrade the bundle — nothing to set in `.env` (stale `FRONTEND_PLATFORM`/`COLLECTORS_PLATFORM` lines are ignored). |
