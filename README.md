@@ -6,10 +6,11 @@ Deskree GitHub repository.
 
 Latest published release: **1.0.5**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.0.5)).
-This tree's `VERSION` is **1.1.2**: the bundled secrets engine is OpenBao 2.6.2
-(chart 1.1.0, ADR-0039; it adopts the existing `vault-data` volume in place) and
-the admin-api/licensing/updater trio is `sha-7927db5` (chart 1.1.2). A public
-`v1.1.2` Release is required before ops can finalize that lock.
+This tree's `VERSION` is **1.1.3**: the same public compose pins as 1.1.2
+(OpenBao 2.6.2, and the admin-api/licensing/updater trio `sha-7927db5`). Helm
+chart 1.1.3 retries a refused Postgres connection in the object-store verify
+job and does not change image pins. A public `v1.1.3` Release is required
+before ops can finalize that lock.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
