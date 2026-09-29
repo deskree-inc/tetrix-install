@@ -78,6 +78,10 @@ for needle, label in required_compose:
     if needle not in compose:
         errors.append(f"docker-compose.yml must default {label} to {needle}")
 
+# setup.sh's CA-bundle fallback must be the same daemon tag as compose.
+if "TETRIX_IMAGE_TAG:-sha-100f0cb" not in setup:
+    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-100f0cb")
+
 login_active = uncomment(login)
 if "pull --quiet" in login_active or "pull -q" in login_active:
     errors.append(
