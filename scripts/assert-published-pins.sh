@@ -9,11 +9,11 @@
 # was already at its latest publish; each tag resolved on ghcr.io/deskree-inc for
 # linux/amd64 + linux/arm64):
 #   daemon/remote      sha-2ebc25e
-#   licensing/updater  sha-7927db5  (do not republish 8b99820c)
+#   licensing/updater  sha-06a6dbd  (do not republish 8b99820c)
 #   collectors         sha-d8aa8ee
-#   frontend           sha-2e161a1
+#   frontend           sha-13aeea1
 #   iam                sha-3cbe20c
-#   admin-api          sha-7927db5
+#   admin-api          sha-06a6dbd
 #   audit-logs         sha-2a150cc
 #   gateway            sha-6fb4e73
 #
@@ -56,12 +56,12 @@ for name, text, forbidden in (
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-2ebc25e", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-3cbe20c", "KEYCLOAK_IMAGE_TAG"),
-    ("FRONTEND_IMAGE_TAG=sha-2e161a1", "FRONTEND_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-13aeea1", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
     ("COLLECTORS_IMAGE_TAG=sha-d8aa8ee", "COLLECTORS_IMAGE_TAG"),
-    ("ADMIN_API_IMAGE_TAG=sha-7927db5", "ADMIN_API_IMAGE_TAG"),
-    ("LICENSING_IMAGE_TAG=sha-7927db5", "LICENSING_IMAGE_TAG"),
-    ("UPDATER_IMAGE_TAG=sha-7927db5", "UPDATER_IMAGE_TAG"),
+    ("ADMIN_API_IMAGE_TAG=sha-06a6dbd", "ADMIN_API_IMAGE_TAG"),
+    ("LICENSING_IMAGE_TAG=sha-06a6dbd", "LICENSING_IMAGE_TAG"),
+    ("UPDATER_IMAGE_TAG=sha-06a6dbd", "UPDATER_IMAGE_TAG"),
     ("GATEWAY_IMAGE_TAG=sha-6fb4e73", "GATEWAY_IMAGE_TAG"),
 )
 for needle, label in required_env:
@@ -71,10 +71,10 @@ for needle, label in required_env:
 required_compose = (
     (":-sha-2ebc25e}", "daemon/remote"),
     (":-sha-3cbe20c}", "iam"),
-    (":-sha-2e161a1}", "frontend"),
+    (":-sha-13aeea1}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
     (":-sha-d8aa8ee}", "collectors"),
-    (":-sha-7927db5}", "admin-api/licensing/updater"),
+    (":-sha-06a6dbd}", "admin-api/licensing/updater"),
     (":-sha-6fb4e73}", "gateway"),
 )
 for needle, label in required_compose:
