@@ -4,13 +4,12 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.4**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.4)).
-This tree's `VERSION` is **1.1.5** (not published yet), matching Helm chart 1.1.5:
+Latest published release: **1.1.5**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)).
+This tree's `VERSION` is **1.1.5**, matching Helm chart 1.1.5:
 daemon/remote `sha-1bc61be`, collectors `sha-31c9cab`, front-end `sha-13aeea1`,
 gateway `sha-6fb4e73`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-06a6dbd`. A public `v1.1.5` Release is
-required before ops can finalize that lock.
+admin-api / licensing / updater `sha-06a6dbd`.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
@@ -51,7 +50,7 @@ TLS (cert-manager ClusterIssuer **or** a pre-created TLS secret).
 ```bash
 helm upgrade --install tetrix \
   oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-  --version 0.8.54 \
+  --version 1.1.5 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -68,7 +67,7 @@ A starter values file is in [`helm/values-example.yaml`](helm/values-example.yam
 A commented customer-safe skeleton is [`helm/values-reference.yaml`](helm/values-reference.yaml).
 The curated parameter catalog (every typical key, Table 1.8-G secret keys, unlicensed
 path, external DBs, opt-in collectors) is **[`HELM.md`](HELM.md)**.
-You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54`
+You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5`
 for the machine-readable full catalog.
 
 **Without a license token** (Docker Hub / air-gapped / your own mirror).
@@ -77,7 +76,7 @@ secret first or pods stay in `ImagePullBackOff`:
 
 ```bash
 helm upgrade --install tetrix \
-  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54 \
+  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -99,12 +98,12 @@ Requires Docker + Compose v2.24+, `openssl`, `curl`, and `python3`.
 ### 1 — Get these files
 
 **Production (recommended):** download the checksummed release asset from this
-repository. SHA-256 is also in the [v0.8.56 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)
+repository. SHA-256 is also in the [v1.1.5 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)
 (`bundle_sha256` in `public-release.json`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 0.8.56 --sha256 b9243c5edebbef49705d12e0264cbf26444b23c7ac8bd102a6cb9ac5faecb0c4 ~/tetrix-docker
+  | bash -s -- --version 1.1.5 --sha256 acbc3a0e066717b323e616d98868cb358e7bbaa2bd5291febd68b0e7339ded57 ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 
