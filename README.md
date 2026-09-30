@@ -7,7 +7,7 @@ Deskree GitHub repository.
 Latest published release: **1.1.4**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.4)).
 This tree's `VERSION` is **1.1.5** (not published yet), matching Helm chart 1.1.5:
-daemon/remote `sha-2ebc25e`, collectors `sha-d8aa8ee`, front-end `sha-13aeea1`,
+daemon/remote `sha-1bc61be`, collectors `sha-31c9cab`, front-end `sha-13aeea1`,
 gateway `sha-6fb4e73`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-06a6dbd`. A public `v1.1.5` Release is
 required before ops can finalize that lock.
@@ -230,7 +230,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-d8aa8ee` is a one-way schema advance.** The migrate job runs
+**Collectors `sha-31c9cab` is a one-way schema advance** from pins older than
+`sha-d8aa8ee` (nothing after `sha-d8aa8ee` adds a migration). The migrate job runs
 `alembic upgrade head`, which applies `0032_checkpoint_digest` (a nullable
 `session_checkpoints.digest` column, no backfill). An install coming from a pin
 older than `sha-74a4d83` also applies `0030_redact_git_tokens` (it rewrites
@@ -240,7 +241,7 @@ any token it redacts was already readable and must be rotated) and
 `0032_checkpoint_digest`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know
 `0032_checkpoint_digest`, the migrate command exits, and every collectors
-service waits on it. Put `sha-d8aa8ee` back, or restore the `control_plane`
+service waits on it. Put `sha-31c9cab` (or `sha-d8aa8ee`) back, or restore the `control_plane`
 database. The only signal that 0030 scrubbed anything is a count line on that
 one-shot's stdout.
 
