@@ -7,9 +7,9 @@ Deskree GitHub repository.
 Latest published release: **1.1.5**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)).
 This tree's `VERSION` is **1.1.6** (not yet published), matching Helm chart 1.1.6:
-daemon/remote `sha-22afe96`, collectors `sha-a6affe4`, front-end `sha-13aeea1`,
-gateway `sha-6fb4e73`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-06a6dbd`.
+daemon/remote `sha-4fcce8e`, collectors `sha-3393d70`, front-end `sha-3ba7235`,
+gateway `sha-a8582b0`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
+admin-api / licensing / updater `sha-7fff242`.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
@@ -229,20 +229,19 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-a6affe4` is a one-way schema advance** from pins older than
-`sha-d8aa8ee` (nothing after `sha-d8aa8ee` adds a migration). The migrate job runs
-`alembic upgrade head`, which applies `0032_checkpoint_digest` (a nullable
-`session_checkpoints.digest` column, no backfill). An install coming from a pin
-older than `sha-74a4d83` also applies `0030_redact_git_tokens` (it rewrites
-GitHub tokens already stored in the run ledger; the downgrade is a no-op, and
-any token it redacts was already readable and must be rotated) and
-`0031_findings` (additive tables). After that, `alembic_version` is
-`0032_checkpoint_digest`. Restoring an older collectors pin and running
-`docker compose up -d` does not bring collectors back: that image does not know
-`0032_checkpoint_digest`, the migrate command exits, and every collectors
-service waits on it. Put `sha-a6affe4` (or any pin from `sha-d8aa8ee` on) back, or restore the `control_plane`
-database. The only signal that 0030 scrubbed anything is a count line on that
-one-shot's stdout.
+**Collectors `sha-3393d70` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. From `sha-a6affe4` that applies `0033_graph_snapshot_stale`,
+`0034_runs_read_indexes`, `0035_graph_snapshot_content_sha` and `0036_run_loop_ticked_at`
+(additive nullable columns and indexes, no backfill). An install older than `sha-d8aa8ee`
+also applies `0032_checkpoint_digest`. An install older than `sha-74a4d83` also applies
+`0030_redact_git_tokens` (it rewrites GitHub tokens already stored in the run ledger; the
+downgrade is a no-op, and any token it redacts was already readable and must be rotated)
+and `0031_findings` (additive tables). After that, `alembic_version` is
+`0036_run_loop_ticked_at`. Restoring an older collectors pin and running
+`docker compose up -d` does not bring collectors back: that image does not know the new
+revision, the migrate command exits, and every collectors service waits on it. Put
+`sha-3393d70` back, or restore the `control_plane` database. The only signal that 0030
+scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
 same one from `.env` (empty by default = unsalted, as every compose install has
