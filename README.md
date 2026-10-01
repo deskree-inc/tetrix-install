@@ -4,9 +4,9 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.7**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.7)).
-This tree's `VERSION` is **1.1.8**, matching Helm chart 1.1.8:
+Latest published release: **1.1.8**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.8)).
+This tree's `VERSION` is **1.1.9**, matching Helm chart 1.1.9:
 daemon/remote `sha-56bdabf`, collectors `sha-126c035`, front-end `sha-9326bff`,
 gateway `sha-a8582b0`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-2f0f436`.
