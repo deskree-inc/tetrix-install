@@ -4,11 +4,12 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.2**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.2)).
-This tree's `VERSION` is **1.1.2**: the bundled secrets engine is OpenBao 2.6.2
-(chart 1.1.0, ADR-0039; it adopts the existing `vault-data` volume in place) and
-the admin-api/licensing/updater trio is `sha-7927db5` (chart 1.1.2).
+Latest published release: **1.1.8**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.8)).
+This tree's `VERSION` is **1.1.9**, matching Helm chart 1.1.9:
+daemon/remote `sha-56bdabf`, collectors `sha-126c035`, front-end `sha-9326bff`,
+gateway `sha-a8582b0`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
+admin-api / licensing / updater `sha-2f0f436`.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
@@ -49,7 +50,7 @@ TLS (cert-manager ClusterIssuer **or** a pre-created TLS secret).
 ```bash
 helm upgrade --install tetrix \
   oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-  --version 0.8.54 \
+  --version 1.1.5 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -66,7 +67,7 @@ A starter values file is in [`helm/values-example.yaml`](helm/values-example.yam
 A commented customer-safe skeleton is [`helm/values-reference.yaml`](helm/values-reference.yaml).
 The curated parameter catalog (every typical key, Table 1.8-G secret keys, unlicensed
 path, external DBs, opt-in collectors) is **[`HELM.md`](HELM.md)**.
-You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54`
+You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5`
 for the machine-readable full catalog.
 
 **Without a license token** (Docker Hub / air-gapped / your own mirror).
@@ -75,7 +76,7 @@ secret first or pods stay in `ImagePullBackOff`:
 
 ```bash
 helm upgrade --install tetrix \
-  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 0.8.54 \
+  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -97,12 +98,12 @@ Requires Docker + Compose v2.24+, `openssl`, `curl`, and `python3`.
 ### 1 — Get these files
 
 **Production (recommended):** download the checksummed release asset from this
-repository. SHA-256 is also in the [v0.8.56 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v0.8.56)
+repository. SHA-256 is also in the [v1.1.5 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)
 (`bundle_sha256` in `public-release.json`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 0.8.56 --sha256 b9243c5edebbef49705d12e0264cbf26444b23c7ac8bd102a6cb9ac5faecb0c4 ~/tetrix-docker
+  | bash -s -- --version 1.1.5 --sha256 acbc3a0e066717b323e616d98868cb358e7bbaa2bd5291febd68b0e7339ded57 ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 
@@ -227,6 +228,20 @@ docker compose up -d --remove-orphans
 ```
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
+
+**Collectors `sha-126c035` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. From `sha-a6affe4` that applies `0033_graph_snapshot_stale`,
+`0034_runs_read_indexes`, `0035_graph_snapshot_content_sha` and `0036_run_loop_ticked_at`
+(additive nullable columns and indexes, no backfill). An install older than `sha-d8aa8ee`
+also applies `0032_checkpoint_digest`. An install older than `sha-74a4d83` also applies
+`0030_redact_git_tokens` (it rewrites GitHub tokens already stored in the run ledger; the
+downgrade is a no-op, and any token it redacts was already readable and must be rotated)
+and `0031_findings` (additive tables). After that, `alembic_version` is
+`0036_run_loop_ticked_at`. Restoring an older collectors pin and running
+`docker compose up -d` does not bring collectors back: that image does not know the new
+revision, the migrate command exits, and every collectors service waits on it. Put
+`sha-126c035` back, or restore the `control_plane` database. The only signal that 0030
+scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
 same one from `.env` (empty by default = unsalted, as every compose install has
