@@ -4,13 +4,13 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.6 (epic #159
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.7 (epic #159
 # repin: daemon/remote, collectors, front-end, gateway, and the admin-api trio;
 # iam and audit-logs stay; each tag resolved on ghcr.io/deskree-inc for
 # linux/amd64 + linux/arm64):
-#   daemon/remote      sha-4fcce8e
+#   daemon/remote      sha-56bdabf
 #   licensing/updater  sha-7fff242  (do not republish 8b99820c)
-#   collectors         sha-3393d70
+#   collectors         sha-126c035
 #   frontend           sha-3ba7235
 #   iam                sha-3cbe20c
 #   admin-api          sha-7fff242
@@ -54,11 +54,11 @@ for name, text, forbidden in (
             errors.append(f"{name} still pins unpublished {tag}")
 
 required_env = (
-    ("TETRIX_IMAGE_TAG=sha-4fcce8e", "TETRIX_IMAGE_TAG"),
+    ("TETRIX_IMAGE_TAG=sha-56bdabf", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-3cbe20c", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-3ba7235", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-3393d70", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-126c035", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-7fff242", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-7fff242", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-7fff242", "UPDATER_IMAGE_TAG"),
@@ -66,14 +66,14 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.6)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.7)")
 
 required_compose = (
-    (":-sha-4fcce8e}", "daemon/remote"),
+    (":-sha-56bdabf}", "daemon/remote"),
     (":-sha-3cbe20c}", "iam"),
     (":-sha-3ba7235}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-3393d70}", "collectors"),
+    (":-sha-126c035}", "collectors"),
     (":-sha-7fff242}", "admin-api/licensing/updater"),
     (":-sha-a8582b0}", "gateway"),
 )
@@ -82,8 +82,8 @@ for needle, label in required_compose:
         errors.append(f"docker-compose.yml must default {label} to {needle}")
 
 # setup.sh's CA-bundle fallback must be the same daemon tag as compose.
-if "TETRIX_IMAGE_TAG:-sha-4fcce8e" not in setup:
-    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-4fcce8e")
+if "TETRIX_IMAGE_TAG:-sha-56bdabf" not in setup:
+    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-56bdabf")
 
 login_active = uncomment(login)
 if "pull --quiet" in login_active or "pull -q" in login_active:
@@ -105,6 +105,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.6 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.7 published tags and does not pass --quiet"
 fi
 exit "$fail"
