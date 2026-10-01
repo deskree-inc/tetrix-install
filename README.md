@@ -4,10 +4,10 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.5**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)).
-This tree's `VERSION` is **1.1.6** (not yet published), matching Helm chart 1.1.6:
-daemon/remote `sha-4fcce8e`, collectors `sha-3393d70`, front-end `sha-3ba7235`,
+Latest published release: **1.1.6**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.6)).
+This tree's `VERSION` is **1.1.7** (not yet published), matching Helm chart 1.1.7:
+daemon/remote `sha-56bdabf`, collectors `sha-126c035`, front-end `sha-3ba7235`,
 gateway `sha-a8582b0`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-7fff242`.
 
@@ -229,7 +229,7 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-3393d70` is a one-way schema advance.** The migrate job runs
+**Collectors `sha-126c035` is a one-way schema advance.** The migrate job runs
 `alembic upgrade head`. From `sha-a6affe4` that applies `0033_graph_snapshot_stale`,
 `0034_runs_read_indexes`, `0035_graph_snapshot_content_sha` and `0036_run_loop_ticked_at`
 (additive nullable columns and indexes, no backfill). An install older than `sha-d8aa8ee`
@@ -240,7 +240,7 @@ and `0031_findings` (additive tables). After that, `alembic_version` is
 `0036_run_loop_ticked_at`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-3393d70` back, or restore the `control_plane` database. The only signal that 0030
+`sha-126c035` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
