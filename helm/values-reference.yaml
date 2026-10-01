@@ -171,7 +171,7 @@ ingress:
 #   rateLimitPerHour: 60
 
 # ---------------------------------------------------------------------------
-# Vault, frontend, audit, scheduling
+# OpenBao (vault.*), frontend, audit, scheduling
 # ---------------------------------------------------------------------------
 # vault:
 #   enabled: true
