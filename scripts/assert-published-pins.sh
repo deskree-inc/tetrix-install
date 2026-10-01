@@ -4,7 +4,7 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.8 (epic #159
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.9 (epic #159
 # repin: daemon/remote, collectors, front-end, gateway, and the admin-api trio;
 # iam and audit-logs stay; each tag resolved on ghcr.io/deskree-inc for
 # linux/amd64 + linux/arm64):
@@ -66,7 +66,7 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.8)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.9)")
 
 required_compose = (
     (":-sha-56bdabf}", "daemon/remote"),
@@ -105,6 +105,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.8 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.9 published tags and does not pass --quiet"
 fi
 exit "$fail"
