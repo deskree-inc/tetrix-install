@@ -696,7 +696,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-3ba7235}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-9326bff}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -706,7 +706,7 @@ services:
 
   # ── Admin API + Licensing ───────────────────────────────────────────────────
   licensing-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-7fff242}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-2f0f436}
     env_file: .env
     depends_on:
       postgres-ensure-licensing:
@@ -717,7 +717,7 @@ services:
     restart: "no"
 
   licensing:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-7fff242}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-2f0f436}
     env_file: .env
     depends_on:
       licensing-migrate:
@@ -773,7 +773,7 @@ services:
     restart: unless-stopped
 
   admin-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-7fff242}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-2f0f436}
     env_file: .env
     depends_on:
       licensing:
@@ -855,7 +855,7 @@ services:
   # (README.md § Upgrades → 2) extracts the release bundle over the project with
   # `tar -xzf`, which restores docker-compose.yml and the service with it.
   updater:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-7fff242}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-2f0f436}
     profiles: ["updater"]
     # Deliberately NO `env_file: .env` (unlike its siblings): nothing here is read
     # from the stack's secret env, and the fewer secrets in this container's
@@ -933,7 +933,7 @@ services:
       # pulled — a fresh Docker Hub pull, whose bytes are known to diverge from
       # the origin's (GHCR) for the same tetrix-updater tag. The `image:`-scoped
       # gates never see env values; scripts/assert-compose-origin-prefix.sh does.
-      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-7fff242}
+      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-2f0f436}
       # ── The fixed ops hook (Cloud M0.3, Tasks 8/9) ────────────────────────────
       # THIS IS WHAT CLOSES ADR-0022's KNOWN GAP. Compose rollback restores project
       # files and image pins but NOT database migrations, so a failed upgrade used

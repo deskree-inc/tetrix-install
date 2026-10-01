@@ -6,10 +6,10 @@ Deskree GitHub repository.
 
 Latest published release: **1.1.6**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.6)).
-This tree's `VERSION` is **1.1.7** (not yet published), matching Helm chart 1.1.7:
-daemon/remote `sha-56bdabf`, collectors `sha-126c035`, front-end `sha-3ba7235`,
+This tree's `VERSION` is **1.1.8**, matching Helm chart 1.1.8:
+daemon/remote `sha-56bdabf`, collectors `sha-126c035`, front-end `sha-9326bff`,
 gateway `sha-a8582b0`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-7fff242`.
+admin-api / licensing / updater `sha-2f0f436`.
 
 Cloud first-provision (`release_catalog`) may only approve a version that exists
 as a **published GitHub Release in this repository**. Helm chart tags this repo
