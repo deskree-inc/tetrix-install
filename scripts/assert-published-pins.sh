@@ -4,14 +4,14 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.12
-# (collectors sha-a21e125 and front-end sha-07bb82d are the System Logs pins;
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.13
+# (collectors sha-d43cbb8 and front-end sha-d5173ed are the Observability pins;
 # daemon/remote, gateway, iam, audit-logs, and the admin-api trio stay at the
 # 1.1.9 set; each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-56bdabf
 #   licensing/updater  sha-2f0f436  (do not republish 8b99820c)
-#   collectors         sha-a21e125
-#   frontend           sha-07bb82d
+#   collectors         sha-d43cbb8
+#   frontend           sha-d5173ed
 #   iam                sha-3cbe20c
 #   admin-api          sha-2f0f436
 #   audit-logs         sha-2a150cc
@@ -56,9 +56,9 @@ for name, text, forbidden in (
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-56bdabf", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-3cbe20c", "KEYCLOAK_IMAGE_TAG"),
-    ("FRONTEND_IMAGE_TAG=sha-07bb82d", "FRONTEND_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-d5173ed", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-a21e125", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-d43cbb8", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-2f0f436", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-2f0f436", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-2f0f436", "UPDATER_IMAGE_TAG"),
@@ -66,14 +66,14 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.12)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.13)")
 
 required_compose = (
     (":-sha-56bdabf}", "daemon/remote"),
     (":-sha-3cbe20c}", "iam"),
-    (":-sha-07bb82d}", "frontend"),
+    (":-sha-d5173ed}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-a21e125}", "collectors"),
+    (":-sha-d43cbb8}", "collectors"),
     (":-sha-2f0f436}", "admin-api/licensing/updater"),
     (":-sha-a8582b0}", "gateway"),
 )
@@ -105,6 +105,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.12 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.13 published tags and does not pass --quiet"
 fi
 exit "$fail"
