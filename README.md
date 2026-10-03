@@ -6,8 +6,8 @@ Deskree GitHub repository.
 
 Latest published release: **1.1.9**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.9)).
-This tree's `VERSION` is **1.1.13**, matching Helm chart 1.1.13:
-daemon/remote `sha-56bdabf`, collectors `sha-d43cbb8`, front-end `sha-d5173ed`,
+This tree's `VERSION` is **1.1.14**, matching Helm chart 1.1.14:
+daemon/remote `sha-56bdabf`, collectors `sha-382c138`, front-end `sha-d5173ed`,
 gateway `sha-a8582b0`, iam `sha-3cbe20c`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-2f0f436`.
 
@@ -229,8 +229,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-d43cbb8` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. From `sha-d43cbb8` that applies `0038_infra_event_dedupe`
+**Collectors `sha-382c138` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. From `sha-382c138` / `sha-d43cbb8` that applies `0038_infra_event_dedupe`
 and `0039_resource_samples` (additive tables, no backfill). From `sha-a21e125` that applies `0037_snapshot_build_started`
 (additive nullable `graph_snapshots.build_started_at`, no backfill). From `sha-a6affe4`
 that applies `0033_graph_snapshot_stale`, `0034_runs_read_indexes`,
@@ -243,7 +243,7 @@ and `0031_findings` (additive tables). After that, `alembic_version` is
 `0039_resource_samples`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-d43cbb8` back, or restore the `control_plane` database. The only signal that 0030
+`sha-382c138` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
