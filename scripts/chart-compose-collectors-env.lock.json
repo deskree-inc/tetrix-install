@@ -3,9 +3,9 @@
   "chart_repo": "deskree-inc/tetrix-ee-helm-chart",
   "chart_path": "deploy/docker/docker-compose.yml",
   "chart_env_example_path": "deploy/docker/.env.example",
-  "chart_ref": "v1.1.2",
-  "chart_commit": "1a9c107f43183356f1921586200ae32b6660c6f1",
-  "chart_version": "1.1.2",
+  "chart_ref": "fix/448-observability-sink-opssupport",
+  "chart_commit": "5c46ed1e2ab667757e6f1f6bff509333e969b41d",
+  "chart_version": "1.1.15",
   "service_map": {
     "collectors-api": "collectors-api",
     "collectors-mcp": "collectors-mcp",
@@ -20,36 +20,63 @@
   "expected": {
     "collectors-api": {
       "TETRIX_API_SERVICE_READYZ_URLS": "${COLLECTORS_API_SERVICE_READYZ_URLS:-{\"api\":\"http://collectors-api:8080/readyz\",\"dispatcher\":\"http://collectors-dispatcher:9090/readyz\",\"mcp\":\"http://collectors-mcp:9090/readyz\",\"worker\":\"http://collectors-worker:9090/readyz\"}}",
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-mcp": {
       "TETRIX_MCP_API_BASE_URL": "${COLLECTORS_MCP_API_BASE_URL:-http://collectors-api:8080}",
       "TETRIX_MCP_API_TIMEOUT_S": "${COLLECTORS_MCP_API_TIMEOUT_S:-6}",
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-dispatcher": {
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-worker": {
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-healthcheck": {
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-hitl": {
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-identity-consumer": {
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     },
     "collectors-session-consumer": {
-      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}"
+      "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
+      "TETRIX_CHART_VERSION": "${TETRIX_RELEASE_VERSION:-}",
+      "TETRIX_OPS_LOG_RETENTION_DAYS": "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}",
+      "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": "${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}"
     }
   },
   "env_example": {
+    "TETRIX_RELEASE_VERSION": "",
     "COLLECTORS_MCP_API_BASE_URL": "http://collectors-api:8080",
     "COLLECTORS_MCP_API_TIMEOUT_S": "6",
     "COLLECTORS_API_SERVICE_READYZ_URLS": "{\"api\":\"http://collectors-api:8080/readyz\",\"dispatcher\":\"http://collectors-dispatcher:9090/readyz\",\"mcp\":\"http://collectors-mcp:9090/readyz\",\"worker\":\"http://collectors-worker:9090/readyz\"}",
-    "TETRIX_IDENTITY_SALT": ""
+    "TETRIX_IDENTITY_SALT": "",
+    "TETRIX_OPS_LOG_RETENTION_DAYS": "14",
+    "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS": ""
   }
 }

@@ -16,6 +16,11 @@
 # Nothing failed; the settings were simply absent. This gate makes the next such
 # gap a red CI check instead of a reviewer's catch.
 #
+# helm#448 (chart 1.1.15) adds three more gated keys, all in the shared anchor:
+#   TETRIX_CHART_VERSION             MCP `platform_versions` chart row (from TETRIX_RELEASE_VERSION)
+#   TETRIX_OPS_LOG_RETENTION_DAYS    local operational_logs retention, default 14, 1..30
+#   TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS deployment-scoped telemetry allowlist, default empty
+#
 # HOW: the chart repository is private and this public repository's CI has no
 # secret for it, so the chart's values are recorded in
 # scripts/chart-compose-collectors-env.lock.json (chart ref + commit + version +
@@ -64,7 +69,14 @@ KEYS = (
     "TETRIX_API_SERVICE_READYZ_URLS",
     "TETRIX_MCP_API_TIMEOUT_S",
     "TETRIX_IDENTITY_SALT",
+    # helm#448
+    "TETRIX_CHART_VERSION",
+    "TETRIX_OPS_LOG_RETENTION_DAYS",
+    "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS",
 )
+# helm#448: keys that must live ONCE, in the x-collectors-env anchor (every collectors service).
+ANCHOR_KEYS = ("TETRIX_CHART_VERSION", "TETRIX_OPS_LOG_RETENTION_DAYS", "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS")
+RETENTION_RANGE = (1, 30)
 # The services that must share one salt (chart#397): api, worker, dispatcher, mcp.
 SALT_COMMANDS = ("api", "worker", "dispatcher", "mcp")
 READYZ_ENTRIES = {"api", "dispatcher", "mcp", "worker"}
@@ -256,6 +268,33 @@ def check_invariants(compose_text):
             elif "TETRIX_IDENTITY_SALT" not in actual.get(name, {}):
                 errors.append(f"service {name!r} ({cmd}) does not receive TETRIX_IDENTITY_SALT")
 
+    # 1b. helm#448: the observability keys, once each, in the shared anchor; sane defaults.
+    anchor_m = re.search(r"^x-collectors-env:\s*&collectors-env\n((?:[ \t]+.*\n|\n)+)", compose_text, re.M)
+    anchor_text = anchor_m.group(1) if anchor_m else ""
+    for key in ANCHOR_KEYS:
+        n = len(re.findall(rf"^\s*{key}:", compose_text, re.M))
+        if n != 1 or not re.search(rf"^\s+{key}:", anchor_text, re.M):
+            errors.append(f"{key} must be defined exactly ONCE, in the x-collectors-env anchor (found {n})")
+    for cmd in SALT_COMMANDS:
+        for name in by_cmd.get(cmd, []):
+            for key in ANCHOR_KEYS:
+                if key not in actual.get(name, {}):
+                    errors.append(f"service {name!r} ({cmd}) does not receive {key}")
+    for s_name, vals in actual.items():
+        if "TETRIX_OPS_LOG_RETENTION_DAYS" in vals:
+            _, d = default_of(vals["TETRIX_OPS_LOG_RETENTION_DAYS"])
+            try:
+                good = RETENTION_RANGE[0] <= int(d) <= RETENTION_RANGE[1]
+            except ValueError:
+                good = False
+            if not good:
+                errors.append(f"TETRIX_OPS_LOG_RETENTION_DAYS on {s_name!r} defaults to {d!r}; must be 1..30")
+        if "TETRIX_CHART_VERSION" in vals:
+            var, _ = default_of(vals["TETRIX_CHART_VERSION"])
+            if var != "TETRIX_RELEASE_VERSION":
+                errors.append(f"TETRIX_CHART_VERSION on {s_name!r} must come from TETRIX_RELEASE_VERSION "
+                              f"(the VERSION-stamped release), got {vals['TETRIX_CHART_VERSION']!r}")
+
     # 2. The readyz map: exactly the four entries, each on a real service of THIS file, on a port it
     #    listens on, at /readyz.
     readyz_holders = [s for s, v in actual.items() if "TETRIX_API_SERVICE_READYZ_URLS" in v]
@@ -436,6 +475,16 @@ def self_test(compose_text, env_text, lock):
          sub(compose_text, readyz_worker, '"worker":"http://collectors-worker:8080/readyz"'), env_text, lock),
         ("readyz points at a service this file does not have",
          sub(compose_text, readyz_worker, '"worker":"http://collectors-workers:9090/readyz"'), env_text, lock),
+        ("retention default out of range",
+         sub(compose_text, "${TETRIX_OPS_LOG_RETENTION_DAYS:-14}", "${TETRIX_OPS_LOG_RETENTION_DAYS:-90}"),
+         env_text, lock),
+        ("chart version dropped from the anchor",
+         sub(compose_text, "  TETRIX_CHART_VERSION: ${TETRIX_RELEASE_VERSION:-}\n", ""), env_text, lock),
+        ("deployment admin accounts dropped from the anchor",
+         sub(compose_text, "  TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS: ${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}\n", ""),
+         env_text, lock),
+        (".env.example loses the retention entry", compose_text,
+         sub(env_text, "# TETRIX_OPS_LOG_RETENTION_DAYS=14\n", ""), lock),
         (".env.example loses the salt entry", compose_text, sub(env_text, "# TETRIX_IDENTITY_SALT=\n", ""), lock),
         (".env.example activates a salt", compose_text,
          sub(env_text, "# TETRIX_IDENTITY_SALT=\n", "TETRIX_IDENTITY_SALT=abc\n"), lock),
@@ -452,6 +501,8 @@ def self_test(compose_text, env_text, lock):
         "salt dropped from the shared anchor", "salt set per service (worker only)",
         "MCP timeout back to 3 s", "MCP base URL removed", "readyz map loses an entry",
         "readyz worker on the wrong port", "readyz points at a service this file does not have",
+        "retention default out of range", "chart version dropped from the anchor",
+        "deployment admin accounts dropped from the anchor",
     }
     fails = 0
     for name, ctext, etext, lk in cases:
@@ -551,7 +602,8 @@ def main(argv):
     src = f"live chart {chart['ref']} @ {(chart['commit'] or '?')[:12]} and the lock" if chart else "the lock"
     print(f"OK: {', '.join(KEYS)} match {src} on "
           f"{', '.join(sorted(mapped_expected(lock)[0]))}; invariants hold (one shared salt, four-entry "
-          "readyz map on this file's services, MCP base URL + >= 6 s timeout)")
+          "readyz map on this file's services, MCP base URL + >= 6 s timeout, observability keys once in "
+          "the shared anchor with retention 1..30)")
     return 0
 
 
