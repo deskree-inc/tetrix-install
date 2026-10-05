@@ -703,7 +703,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-d5173ed}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-233dafb}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -713,7 +713,7 @@ services:
 
   # ── Admin API + Licensing ───────────────────────────────────────────────────
   licensing-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-2f0f436}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-f781d59}
     env_file: .env
     depends_on:
       postgres-ensure-licensing:
@@ -724,7 +724,7 @@ services:
     restart: "no"
 
   licensing:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-2f0f436}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-f781d59}
     env_file: .env
     depends_on:
       licensing-migrate:
@@ -780,7 +780,7 @@ services:
     restart: unless-stopped
 
   admin-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-2f0f436}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-f781d59}
     env_file: .env
     depends_on:
       licensing:
@@ -862,7 +862,7 @@ services:
   # (README.md § Upgrades → 2) extracts the release bundle over the project with
   # `tar -xzf`, which restores docker-compose.yml and the service with it.
   updater:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-2f0f436}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-f781d59}
     profiles: ["updater"]
     # Deliberately NO `env_file: .env` (unlike its siblings): nothing here is read
     # from the stack's secret env, and the fewer secrets in this container's
@@ -940,7 +940,7 @@ services:
       # pulled — a fresh Docker Hub pull, whose bytes are known to diverge from
       # the origin's (GHCR) for the same tetrix-updater tag. The `image:`-scoped
       # gates never see env values; scripts/assert-compose-origin-prefix.sh does.
-      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-2f0f436}
+      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-f781d59}
       # ── The fixed ops hook (Cloud M0.3, Tasks 8/9) ────────────────────────────
       # THIS IS WHAT CLOSES ADR-0022's KNOWN GAP. Compose rollback restores project
       # files and image pins but NOT database migrations, so a failed upgrade used
@@ -1028,7 +1028,7 @@ services:
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
   collectors-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -1039,7 +1039,7 @@ services:
     restart: "no"
 
   collectors-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     env_file:
       - path: .env
         required: true
@@ -1101,7 +1101,7 @@ services:
     restart: unless-stopped
 
   collectors-mcp:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1137,7 +1137,7 @@ services:
     restart: unless-stopped
 
   collectors-dispatcher:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1162,7 +1162,7 @@ services:
     restart: unless-stopped
 
   collectors-worker:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     env_file:
       - path: .env
         required: true
@@ -1224,7 +1224,7 @@ services:
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1275,7 +1275,7 @@ services:
   # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
   # wait-for-daemon init container.
   collectors-hitl:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1317,7 +1317,7 @@ services:
   # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1357,7 +1357,7 @@ services:
   # which is why `depends_on: daemon` is here — the Compose twin of the chart's
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-382c138}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-f3ac783}
     env_file: .env
     depends_on:
       collectors-migrate:
