@@ -11,6 +11,20 @@ http:
         - auth-collectors
       service: collectors-api
       tls: {}
+    # helm#448: /api/v1/internal/* (POST /api/v1/internal/infra-events, the shared-secret
+    # sink for the Kubernetes infra-events watcher) is in-cluster only. Rewritten to a path
+    # collectors-api does not serve, so the edge gets a plain 404. Priority beats the
+    # /api/v1 router above (file-provider default priority = rule length). Twin of the helm
+    # IngressRoute <fullname>-collectors-internal-deny.
+    collectors-internal-deny:
+      rule: "Host(`${TETRIX_HOST}`) && PathPrefix(`/api/v1/internal`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - collectors-internal-deny
+      service: collectors-api
+      priority: 10000
+      tls: {}
     collectors-hooks:
       rule: "Host(`${TETRIX_HOST}`) && PathPrefix(`/hooks`)"
       entryPoints:
@@ -56,6 +70,11 @@ http:
       service: collectors-mcp
       priority: 100
       tls: {}
+
+  middlewares:
+    collectors-internal-deny:
+      replacePath:
+        path: /__tetrix/not-routed
 
   services:
     collectors-api:

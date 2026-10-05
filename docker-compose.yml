@@ -34,6 +34,13 @@ x-collectors-env: &collectors-env
   # `up` for a new install. Same name as the container variable, so a value already in .env
   # keeps winning. Twin of values collectors.identitySalt.
   TETRIX_IDENTITY_SALT: ${TETRIX_IDENTITY_SALT:-}
+  # helm#448 (twins of the helm collectors ConfigMap and the chart's deploy/docker): the release
+  # this stack runs, for MCP `platform_versions` (setup.sh stamps TETRIX_RELEASE_VERSION from
+  # VERSION; empty = unknown); local operational_logs retention (1..30 days); and the accounts
+  # allowed to read deployment-scoped telemetry (comma list; empty = single-tenant rule).
+  TETRIX_CHART_VERSION: ${TETRIX_RELEASE_VERSION:-}
+  TETRIX_OPS_LOG_RETENTION_DAYS: ${TETRIX_OPS_LOG_RETENTION_DAYS:-14}
+  TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS: ${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}
   # Keycloak additive override: mode stays "logto"; ISSUER+JWKS_URL repoint verification.
   TETRIX_API_AUTH_MODE: logto
   TETRIX_API_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_API}
