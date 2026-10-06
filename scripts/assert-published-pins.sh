@@ -4,16 +4,16 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.15
-# (collectors sha-f3ac783 and front-end sha-233dafb are the Observability audit
-# epic, collectors#1268; the admin-api trio moves to sha-f781d59, admin-api#170;
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.16
+# (collectors sha-8b8037f and front-end sha-74b0ef7 are the Observability audit
+# epic plus follow-ups, collectors#1268/#1281; the admin-api trio is sha-60b5c81, admin-api#173;
 # daemon/remote, gateway, iam, and audit-logs stay at the 1.1.9 set; each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-56bdabf
-#   licensing/updater  sha-f781d59  (do not republish 8b99820c)
-#   collectors         sha-f3ac783
-#   frontend           sha-233dafb
+#   licensing/updater  sha-60b5c81  (do not republish 8b99820c)
+#   collectors         sha-8b8037f
+#   frontend           sha-74b0ef7
 #   iam                sha-3cbe20c
-#   admin-api          sha-f781d59
+#   admin-api          sha-60b5c81
 #   audit-logs         sha-2a150cc
 #   gateway            sha-a8582b0
 #
@@ -56,25 +56,25 @@ for name, text, forbidden in (
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-56bdabf", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-3cbe20c", "KEYCLOAK_IMAGE_TAG"),
-    ("FRONTEND_IMAGE_TAG=sha-233dafb", "FRONTEND_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-74b0ef7", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-f3ac783", "COLLECTORS_IMAGE_TAG"),
-    ("ADMIN_API_IMAGE_TAG=sha-f781d59", "ADMIN_API_IMAGE_TAG"),
-    ("LICENSING_IMAGE_TAG=sha-f781d59", "LICENSING_IMAGE_TAG"),
-    ("UPDATER_IMAGE_TAG=sha-f781d59", "UPDATER_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-8b8037f", "COLLECTORS_IMAGE_TAG"),
+    ("ADMIN_API_IMAGE_TAG=sha-60b5c81", "ADMIN_API_IMAGE_TAG"),
+    ("LICENSING_IMAGE_TAG=sha-60b5c81", "LICENSING_IMAGE_TAG"),
+    ("UPDATER_IMAGE_TAG=sha-60b5c81", "UPDATER_IMAGE_TAG"),
     ("GATEWAY_IMAGE_TAG=sha-a8582b0", "GATEWAY_IMAGE_TAG"),
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.15)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.16)")
 
 required_compose = (
     (":-sha-56bdabf}", "daemon/remote"),
     (":-sha-3cbe20c}", "iam"),
-    (":-sha-233dafb}", "frontend"),
+    (":-sha-74b0ef7}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-f3ac783}", "collectors"),
-    (":-sha-f781d59}", "admin-api/licensing/updater"),
+    (":-sha-8b8037f}", "collectors"),
+    (":-sha-60b5c81}", "admin-api/licensing/updater"),
     (":-sha-a8582b0}", "gateway"),
 )
 for needle, label in required_compose:
@@ -105,6 +105,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.15 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.16 published tags and does not pass --quiet"
 fi
 exit "$fail"
