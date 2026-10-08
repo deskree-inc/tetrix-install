@@ -434,7 +434,10 @@ services:
       # policy component — and the SPI then stamps every newly registered Cursor client.
       # Documented "empty/0 ⇒ inert" has to mean inert on BOTH writers.
       KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN: ${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}
-      KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES: ${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/}
+      KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES: "${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/ http://localhost: http://127.0.0.1:}"
+      # ADR-0027 Amendment 1 (A1-D2): token events on, 7-day retention (see values.yaml).
+      KEYCLOAK_TOKEN_EVENTS: ${KEYCLOAK_TOKEN_EVENTS:-true}
+      KEYCLOAK_TOKEN_EVENTS_EXPIRATION_S: ${KEYCLOAK_TOKEN_EVENTS_EXPIRATION_S:-604800}
       TETRIX_PUBLIC_URL: ${TETRIX_PUBLIC_URL}
       TETRIX_SPA_BASE_PATH: ""
       KEYCLOAK_OWNER_EMAIL: ${KEYCLOAK_OWNER_EMAIL}
@@ -496,7 +499,7 @@ services:
       KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN: ${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}
-      KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES: ${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/}
+      KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES: "${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/ http://localhost: http://127.0.0.1:}"
       DCR_REPAIR_INTERVAL_SECONDS: ${DCR_REPAIR_INTERVAL_SECONDS:-120}
     volumes:
       - type: bind

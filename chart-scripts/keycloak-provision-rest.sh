@@ -16,6 +16,9 @@ TRUSTED_HOSTS="${KEYCLOAK_TRUSTED_HOSTS:-}"
 # scope the resource does not advertise — see keycloak-dcr-scope-repair.sh for the full
 # reasoning. hitl:write is here for the same reason (the four HITL mutation tools), and this
 # script now creates that client scope below so the allowlist entry is not a no-op (#189).
+# collector:admin is deliberately absent. Anonymous DCR returns 403 and authorize
+# returns invalid_scope if it is advertised. Entitled humans receive it at mint
+# from ensure_collector_admin_mapper on res:api, res:mcp, and graph:read.
 ALLOWED_DCR_SCOPES="${KEYCLOAK_ALLOWED_DCR_SCOPES:-res:mcp graph:read sessions:write hitl:write basic profile email offline_access}"
 # Config for the tetrix-dcr-default-scopes ClientRegistrationPolicy component (#208):
 # the scope split every DCR client is born with once the iam#42 SPI is active.
@@ -32,9 +35,9 @@ DCR_ACCESS_TOKEN_LIFESPAN="${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}"
 # The vendor predicate for that exception (ADR-0027 D1): space-separated redirect-URI
 # prefixes. The SPI stamps a client only when one of its redirect URIs starts with one of
 # these AND the client is a public, UUID-named, anonymously-registered app. Empty ⇒ no
-# client qualifies, so the exception cannot widen by omission. Cursor is the client with
-# the refresh bug; Claude Code is measured fine on the realm's 300s.
-DCR_ATL_REDIRECT_PREFIXES="${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/}"
+# client qualifies, so the exception cannot widen by omission. Cursor, plus (ADR-0027
+# Amendment 1) loopback native apps like Claude Code — see tetrix-architecture#151.
+DCR_ATL_REDIRECT_PREFIXES="${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/ http://localhost: http://127.0.0.1:}"
 ISSUER="${KEYCLOAK_ISSUER:?}"
 AUD_DAEMON="${KEYCLOAK_AUDIENCE_DAEMON:?}"
 AUD_API="${KEYCLOAK_AUDIENCE_API:?}"
@@ -73,12 +76,29 @@ http() {
     /*) _url="${ADMIN_BASE}${_path}" ;;
     *) _url="${REALM_BASE}/${_path}" ;;
   esac
-  HTTP_CODE="$(curl -sS -o /tmp/kc-body -D /tmp/kc-hdrs -w '%{http_code}' \
-    -X "${_method}" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    "$@" \
-    "${_url}" 2>/tmp/kc-curl.err || echo "000")"
+  _kc_auth_retried=0
+  while :; do
+    HTTP_CODE="$(curl -sS -o /tmp/kc-body -D /tmp/kc-hdrs -w '%{http_code}' \
+      -X "${_method}" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      "$@" \
+      "${_url}" 2>/tmp/kc-curl.err || echo "000")"
+  # ── chart#267: the whole run used to ride ONE master-realm admin token whose
+  # lifespan (Keycloak default: 60s) is shorter than a healthy run (61-64s
+  # measured). A 401 from the Admin REST API therefore means "token expired
+  # mid-run", not "forbidden" (permission problems are 403). Re-authenticate
+  # once and replay the request; if re-auth itself fails, fall through with
+  # the original 401 so callers behave exactly as before.
+    if [ "${HTTP_CODE}" = "401" ] && [ "${_kc_auth_retried}" = "0" ]; then
+      _kc_auth_retried=1
+      echo "==> admin token rejected (http=401) — re-authenticating and retrying once (chart#267)" >&2
+      if obtain_token; then
+        continue
+      fi
+    fi
+    break
+  done
 }
 
 obtain_token() {
@@ -109,9 +129,11 @@ words_to_json_array() {
 # Idempotency is the user attribute tetrix.ownerInviteSentAt, written only AFTER
 # Keycloak answers 204. Absent means "send"; present means "skip".
 OWNER_INVITE_ONLY=0
+OWNER_SET_PASSWORD=0
 for _arg in "$@"; do
   case "$_arg" in
     --owner-invite-only) OWNER_INVITE_ONLY=1 ;;
+    --set-owner-password) OWNER_SET_PASSWORD=1 ;;
   esac
 done
 
@@ -127,6 +149,24 @@ SMTP_SSL="${KEYCLOAK_SMTP_SSL:-true}"
 SMTP_STARTTLS="${KEYCLOAK_SMTP_STARTTLS:-false}"
 
 owner_invite_mode() {
+  # An invite is an EMAIL, and there is nothing to send it with until a realm
+  # SMTP credential exists. Tetrix Cloud does NOT provision one: the Owner signs
+  # in with a password Tetrix Cloud reveals (`owner_credential_reveals` /
+  # `claim_owner_password`, and the portal's own "Regenerate owner password"),
+  # and configures SMTP inside their instance AFTERWARDS. So `cloud` alone must
+  # never select invite mode.
+  #
+  # It used to, unconditionally. The consequences on a cloud tenant were exactly
+  # backwards: this script took the invite branch, deliberately left the Owner
+  # WITHOUT a preset credential ("email-invite mode"), then asked Keycloak to
+  # send an execute-actions email with no mail server configured, got a 5xx and
+  # exited 1 on `smtp_rejected`. The Owner ended up with neither a password nor
+  # an email, and because the one-shot exits non-zero the composite health gate
+  # reports `compose:failed` forever — which also fails the POST-UPGRADE health
+  # check, so every upgrade applied and then rolled back. Measured on `test6` /
+  # tetrix-6de4ae46622eb63b (2026-09-02); `RESEND_API_KEY` is absent from that
+  # VM because no Tetrix Cloud component has ever delivered one.
+  [ -n "${SMTP_PASSWORD}" ] || return 1
   [ "${DEPLOY_MODE}" = "cloud" ] && return 0
   [ "${KEYCLOAK_OWNER_INVITE:-}" = "true" ] && return 0
   return 1
@@ -267,6 +307,71 @@ find_or_create_owner() {
   printf '%s' "${_id}"
 }
 
+if [ "${OWNER_SET_PASSWORD}" -eq 1 ]; then
+  : "${KEYCLOAK_OWNER_EMAIL:?KEYCLOAK_OWNER_EMAIL is required}"
+  _ready=0
+  _i=1
+  while [ "${_i}" -le 30 ]; do
+    if obtain_token && http GET "" && [ "${HTTP_CODE}" = "200" ]; then
+      _ready=1
+      break
+    fi
+    _i=$((_i + 1))
+    sleep 2
+  done
+  [ "${_ready}" -eq 1 ] || owner_invite_fail keycloak_unavailable
+  OWNER_PW="${KEYCLOAK_OWNER_PASSWORD:-}"
+  if [ -z "${OWNER_PW}" ]; then
+    # `openssl` IS NOT IN THE PROVISIONING IMAGE. The compose service runs
+    # `badouralix/curl-jq:alpine` — curl and jq, nothing else. Verified live
+    # inside that exact image on tetrix-6de4ae46622eb63b (2026-09-02):
+    # `openssl: ABSENT`, while tr / head / base64 / od / dd / awk are present
+    # and /dev/urandom is readable.
+    #
+    # So `openssl rand` exited 127 "not found", which failed SEND_OWNER_INVITE
+    # with COMMAND_EXIT_NONZERO on all five attempts and left the owner with NO
+    # password on a deployment that was otherwise RUNNING and reachable
+    # (91a3b19b / test6.tetrix.deskree.com). Create looked healthy and the
+    # product was unusable, because nobody could sign in.
+    #
+    # 32 alphanumerics is ~190 bits, matching the 192 the 24-byte openssl call
+    # gave, and avoids base64's `+/=` in a value that travels through JSON, a
+    # URL and a copy-paste. This shell is `set -eu` with NO pipefail, so `head`
+    # closing the pipe is not a failure.
+    OWNER_PW="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32)"
+    # NEVER set an empty password: a silent generator failure would otherwise
+    # hand the Owner account a blank credential.
+    [ -n "${OWNER_PW}" ] || owner_invite_fail owner_password_generation_failed
+    # NEVER set an empty password: a silent generator failure would otherwise
+    # hand the Owner account a blank credential.
+  fi
+  OWNER_ID="$(find_or_create_owner)"
+  jq -n --arg p "${OWNER_PW}" '{type:"password", value:$p, temporary:false}' >/tmp/kc-owner-pw.json
+  if ! http PUT "users/${OWNER_ID}/reset-password" --data-binary @/tmp/kc-owner-pw.json \
+     || { [ "${HTTP_CODE}" != "204" ] && [ "${HTTP_CODE}" != "200" ]; }; then
+    echo "ERROR: failed to set Owner password http=${HTTP_CODE}" >&2
+    cat /tmp/kc-body >&2 || true
+    exit 1
+  fi
+  echo "Owner password set (value not logged)" >&2
+  jq -cn \
+    --arg deployment "${TETRIX_DEPLOYMENT_ID:-}" \
+    --arg slug "${TETRIX_DEPLOYMENT_SLUG:-}" \
+    --arg kid "${OWNER_ID}" \
+    --arg at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    --arg login "${OWNER_PW}" \
+    '{
+      schema: "tetrix-cloud-owner-credential.v1",
+      deployment_id: (if $deployment == "" then null else $deployment end),
+      slug: (if $slug == "" then null else $slug end),
+      status: "issued",
+      keycloak_user_id: $kid,
+      issued_at: $at,
+      owner_login: $login
+    }'
+  exit 0
+fi
+
 if [ "${OWNER_INVITE_ONLY}" -eq 1 ]; then
   : "${KEYCLOAK_OWNER_EMAIL:?KEYCLOAK_OWNER_EMAIL is required}"
   _ready=0
@@ -401,6 +506,67 @@ if http GET "" && [ "${HTTP_CODE}" = "200" ]; then
 else
   echo "WARN: could not read realm for the session-settings check (http=${HTTP_CODE}) — skipping" >&2
 fi
+
+# ------------------------------------------------------------------
+# Token events (ADR-0027 Amendment 1, A1-D2 — tetrix-architecture#151)
+# ------------------------------------------------------------------
+# Keycloak's realm events are OFF by default, so a refresh-token reuse that ends an MCP
+# client's login (`REFRESH_TOKEN_ERROR` "Maximum allowed refresh token reuse exceeded", then
+# "Session doesn't have required client") leaves no trace server-side — 13 of them were only
+# found in a developer's laptop logs. Turn on the four token events, never token values.
+#
+# ENFORCEMENT MODEL (never narrows what an operator chose):
+#   eventsEnabled     : FORCED true (when KEYCLOAK_TOKEN_EVENTS is on)
+#   enabledEventTypes : events OFF → exactly our four. MEASURED on Keycloak 26.7.3: a realm
+#                       with events off still REPORTS its full ~100-type default list
+#                       (LOGIN, UPDATE_PASSWORD, ...) — that list is inert, not an operator
+#                       choice, and unioning it would switch on every event type.
+#                       events ON → UNION with ours; an operator's list keeps every type it
+#                       had. An events-on realm with an EMPTY list means "all types" —
+#                       left alone, since adding four would NARROW it.
+#   eventsExpiration  : set ONLY when we are the ones turning events on and none is set;
+#                       an operator's retention (including 0 = forever) is theirs.
+#   eventsListeners   : untouched (the GET body is PUT back with only these fields merged).
+# Best-effort and idempotent, like the rest of this hook.
+TOKEN_EVENTS="${KEYCLOAK_TOKEN_EVENTS:-true}"
+TOKEN_EVENT_TYPES="REFRESH_TOKEN REFRESH_TOKEN_ERROR CODE_TO_TOKEN CODE_TO_TOKEN_ERROR"
+TOKEN_EVENTS_EXPIRATION="${KEYCLOAK_TOKEN_EVENTS_EXPIRATION_S:-604800}"
+case "${TOKEN_EVENTS_EXPIRATION}" in ''|*[!0-9]*) echo "WARN: KEYCLOAK_TOKEN_EVENTS_EXPIRATION_S='${TOKEN_EVENTS_EXPIRATION}' is not a number — using 604800" >&2; TOKEN_EVENTS_EXPIRATION=604800 ;; esac
+ensure_token_events() {
+  case "${TOKEN_EVENTS}" in
+    1|true|yes)
+      if http GET "events/config" && [ "${HTTP_CODE}" = "200" ]; then
+        cp /tmp/kc-body /tmp/kc-events-cur.json
+        _types_json="$(printf '%s\n' "${TOKEN_EVENT_TYPES}" | words_to_json_array)"
+        if jq --argjson want "${_types_json}" --argjson exp "${TOKEN_EVENTS_EXPIRATION}" '
+              (.eventsEnabled == true) as $was_on
+            | ((.enabledEventTypes // []) | length == 0) as $all
+            | .enabledEventTypes = (if ($was_on | not) then $want
+                                    elif $all then (.enabledEventTypes // [])
+                                    else (((.enabledEventTypes // []) + $want) | unique) end)
+            | .eventsExpiration = (if ($was_on | not) and ((.eventsExpiration // 0) == 0)
+                                   then $exp else .eventsExpiration end)
+            | .eventsEnabled = true' /tmp/kc-events-cur.json >/tmp/kc-events-new.json 2>/dev/null; then
+          # Keycloak returns the type SET in arbitrary order — compare sorted, or every run re-PUTs.
+          if [ "$(jq -S '.enabledEventTypes |= ((. // []) | sort)' /tmp/kc-events-cur.json)" = "$(jq -S '.enabledEventTypes |= ((. // []) | sort)' /tmp/kc-events-new.json)" ]; then
+            echo "token events already on types=$(jq -c '.enabledEventTypes' /tmp/kc-events-cur.json) expiration=$(jq -r '.eventsExpiration // 0' /tmp/kc-events-cur.json)s"
+          elif http PUT "events/config" --data-binary @/tmp/kc-events-new.json \
+            && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
+            echo "token events -> enabled types=$(jq -c '.enabledEventTypes' /tmp/kc-events-new.json) expiration=$(jq -r '.eventsExpiration // 0' /tmp/kc-events-new.json)s (was enabled=$(jq -r '.eventsEnabled // false' /tmp/kc-events-cur.json))"
+          else
+            echo "WARN: could not enable token events (http=${HTTP_CODE}) — refresh-token failures stay invisible server-side (tetrix-architecture#151)" >&2
+          fi
+        else
+          echo "WARN: could not build the token-events payload — skipping (tetrix-architecture#151)" >&2
+        fi
+      else
+        echo "WARN: could not read realm events config (http=${HTTP_CODE}) — skipping token events" >&2
+      fi
+      ;;
+    *) echo "token events: disabled by KEYCLOAK_TOKEN_EVENTS=${TOKEN_EVENTS} — realm events config left as-is" ;;
+  esac
+}
+ensure_token_events
 
 # ADR-0017 D1: a client-level session cap silently falsifies the realm window —
 # the realm reads 48h while the SPA's own sessions die sooner. ASSERT only: warn
@@ -589,8 +755,8 @@ ensure_oidc_builtin_scope profile
 # ------------------------------------------------------------------
 # The four MCP HITL mutation tools (answer/route/dismiss/decline_hitl_question) demand
 # scope hitl:write server-side (collectors mcp_service/app/auth.py::TOOL_SCOPES), but the
-# scope shipped in neither realm import — measured absent on a hosted
-# realm. With no such scope in the realm no token can ever carry it, so all four
+# scope shipped in neither realm import — measured absent on the live tetrix-development
+# realm (#189). With no such scope in the realm no token can ever carry it, so all four
 # tools failed authorization for every caller, and every hitl:write line in the DCR
 # attachment paths was a silent no-op.
 #
@@ -965,21 +1131,27 @@ ensure_groups_mapper res:mcp
 ensure_groups_mapper graph:read
 
 # ------------------------------------------------------------------
-# res:api collector-admin script mapper
+# entitled collector:admin script mapper (tetrix-iam#19, MCP extension)
+#
+# Same script as the SPA path, on every scope an MCP token actually carries.
+# collector:admin stays off ALLOWED_DCR_SCOPES and off DCR_ENSURE_DEFAULT_SCOPES:
+# advertising it makes anonymous DCR return 403 and authorize return invalid_scope.
+# Cursor keeps res:mcp; Claude/ChatGPT drop it and still request graph:read.
 # ------------------------------------------------------------------
 ensure_collector_admin_mapper() {
-  _sid="$(client_scope_id "res:api")"
+  _scope="$1"
+  _sid="$(client_scope_id "${_scope}")"
   if [ -z "${_sid}" ] || [ "${_sid}" = "null" ]; then
-    echo "WARN: client scope res:api not found — skip collector:admin mapper" >&2
+    echo "WARN: client scope ${_scope} not found — skip collector:admin mapper" >&2
     return 0
   fi
   _mapper_name="collector-admin-if-entitled"
   if ! http GET "client-scopes/${_sid}/protocol-mappers/models" || [ "${HTTP_CODE}" != "200" ]; then
-    echo "WARN: could not list res:api protocol-mappers" >&2
+    echo "WARN: could not list ${_scope} protocol-mappers" >&2
     return 0
   fi
   if jq -e --arg n "${_mapper_name}" 'map(select(.name==$n)) | length > 0' /tmp/kc-body >/dev/null 2>&1; then
-    echo "res:api protocol-mapper ${_mapper_name} already present"
+    echo "${_scope} protocol-mapper ${_mapper_name} already present"
     return 0
   fi
   jq -n --arg n "${_mapper_name}" '{
@@ -996,13 +1168,16 @@ ensure_collector_admin_mapper() {
   }' >/tmp/kc-collector-admin-mapper.json
   if http POST "client-scopes/${_sid}/protocol-mappers/models" --data-binary @/tmp/kc-collector-admin-mapper.json \
     && [ "${HTTP_CODE}" = "201" ]; then
-    echo "res:api protocol-mapper += ${_mapper_name}"
+    echo "${_scope} protocol-mapper += ${_mapper_name}"
   else
-    echo "WARN: could not create ${_mapper_name} on res:api (image may lack script — bump keycloak.image.tag) http=${HTTP_CODE}" >&2
+    echo "WARN: could not create ${_mapper_name} on ${_scope} (image may lack script — bump keycloak.image.tag) http=${HTTP_CODE}" >&2
     cat /tmp/kc-body >&2 || true
   fi
 }
-ensure_collector_admin_mapper
+echo "==> ensuring entitled collector:admin mapper on res:api + res:mcp + graph:read"
+ensure_collector_admin_mapper res:api
+ensure_collector_admin_mapper res:mcp
+ensure_collector_admin_mapper graph:read
 
 # ------------------------------------------------------------------
 # SPA client (GET-merge-PUT so we do not wipe client fields)
@@ -1077,7 +1252,14 @@ if [ -s "${ORG_ID_FILE}" ]; then
   OWNER_ORG_ID="$(tr -d '[:space:]' < "${ORG_ID_FILE}")"
   echo "==> Owner org id ${OWNER_ORG_ID} handed on by the resolve step (${ORG_ID_FILE})"
 fi
-if [ -n "${OWNER_EMAIL}" ] && { [ -n "${OWNER_PW}" ] || owner_invite_mode; }; then
+# A cloud Owner is seeded with NO credential on purpose: the account, its
+# platform_admin role and its org membership must all exist before Tetrix Cloud
+# mints the password ("Regenerate owner password" -> SEND_OWNER_INVITE ->
+# --set-owner-password), so that path only ever sets a credential on an account
+# that is already complete. Dev is unchanged: it still needs a password or an
+# explicit KEYCLOAK_OWNER_INVITE=true.
+if [ -n "${OWNER_EMAIL}" ] && { [ -n "${OWNER_PW}" ] || owner_invite_mode \
+     || [ "${DEPLOY_MODE}" = "cloud" ]; }; then
   # Realm SMTP FIRST: execute-actions-email below has nowhere to send until the
   # realm knows its mail server.
   ensure_realm_smtp
@@ -1115,6 +1297,10 @@ if [ -n "${OWNER_EMAIL}" ] && { [ -n "${OWNER_PW}" ] || owner_invite_mode; }; th
     fi
   elif owner_invite_mode; then
     echo "email-invite mode: leaving the Owner without a preset credential" >&2
+  else
+    # Say it plainly. This is the normal cloud install state, and the previous
+    # silence here is what made "Owner password could not be set" unreadable.
+    echo "no credential seeded: Tetrix Cloud mints the Owner password on demand" >&2
   fi
 
   if http GET "roles/platform_admin" && [ "${HTTP_CODE}" = "200" ]; then
