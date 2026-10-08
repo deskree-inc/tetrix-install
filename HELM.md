@@ -208,6 +208,7 @@ Set `collectors.enabled=false` for a lean daemon-only install.
 | `collectors.identityConsumer.enabled` | `false` | Opt-in identity projector. |
 | `collectors.webhooks.enabled` | `false` | Opt-in source webhook registration. |
 | `collectors.relay.enabled` | `false` | Opt-in dedicated outbox relay (dispatcher already relays each tick). |
+| `collectors.runJobs.enabled` | `false` | Opt-in: each worker runs every pipeline run as its own Kubernetes Job instead of inline (collectors#1243). Set `collectors.runJobs.imageSupportsRunJobs=true` with it (the gate for an image that has the Job executor; the default pin does). The chart refuses to render `enabled=true` unless `collectors.runJobs.admissionPolicy.enabled=true` (Kubernetes 1.30+, ValidatingAdmissionPolicy) or `collectors.runJobs.admissionPolicy.acceptRisk=true` (a boolean, not a string). |
 | `explore.provider` / `.model` / `.rateLimitPerHour` | `anthropic` / `claude-haiku-4-5-20251001` / `60` | Explore agent. Stays disabled until `secrets.exploreLlmApiKey` is set. |
 | `secrets.exploreLlmApiKey` | *(empty)* | Optional. Empty disables the agent. |
 | `secrets.collectorsControlPlaneDbPassword` | *(auto)* | Control-plane DB password on bundled Postgres. |

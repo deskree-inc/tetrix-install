@@ -703,7 +703,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-746c628}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-4fd9dbb}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -1028,7 +1028,7 @@ services:
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
   collectors-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -1039,7 +1039,7 @@ services:
     restart: "no"
 
   collectors-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     env_file:
       - path: .env
         required: true
@@ -1101,7 +1101,7 @@ services:
     restart: unless-stopped
 
   collectors-mcp:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1137,7 +1137,7 @@ services:
     restart: unless-stopped
 
   collectors-dispatcher:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1162,7 +1162,7 @@ services:
     restart: unless-stopped
 
   collectors-worker:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     env_file:
       - path: .env
         required: true
@@ -1199,7 +1199,8 @@ services:
       # under `process` (and are ignored under `inline`). Only this service carries the three; each
       # is overridable from .env. The default moves to `process` in a later release, once
       # tetrix-architecture ADR-0044 is Accepted. An image from before the executor (sha-8b8037f and
-      # older) ignores all three; the default pin since 1.1.21 here, sha-1723847, honours them.
+      # older) ignores all three; sha-1723847 is the first that honours them, and the 1.1.21 default
+      # pin here, sha-6e4d334, does too.
       WORKER_RUN_EXECUTOR: ${WORKER_RUN_EXECUTOR:-inline}
       WORKER_RUN_MEMORY_CEILING_FRACTION: ${WORKER_RUN_MEMORY_CEILING_FRACTION:-0.8}
       WORKER_RUN_MEMORY_CEILING_MIN_MB: ${WORKER_RUN_MEMORY_CEILING_MIN_MB:-256}
@@ -1257,7 +1258,7 @@ services:
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1308,7 +1309,7 @@ services:
   # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
   # wait-for-daemon init container.
   collectors-hitl:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1350,7 +1351,7 @@ services:
   # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1390,7 +1391,7 @@ services:
   # which is why `depends_on: daemon` is here — the Compose twin of the chart's
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-6e4d334}
     env_file: .env
     depends_on:
       collectors-migrate:
