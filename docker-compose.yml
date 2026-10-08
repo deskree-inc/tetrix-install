@@ -381,7 +381,7 @@ services:
 
   # ── Keycloak (IdP) ──────────────────────────────────────────────────────────
   keycloak:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-3cbe20c}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-7f0c138}
     depends_on:
       postgres-ensure-keycloak:
         condition: service_completed_successfully
@@ -540,7 +540,7 @@ services:
     restart: "no"
 
   keycloak-owner-org-sync:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-3cbe20c}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-iam:${KEYCLOAK_IMAGE_TAG:-sha-7f0c138}
     depends_on:
       keycloak-provision:
         condition: service_completed_successfully
@@ -561,7 +561,7 @@ services:
 
   # ── Core application ────────────────────────────────────────────────────────
   daemon:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-56bdabf}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-3b96d26}
     <<: *local-hosts
     env_file:
       - path: .env
@@ -609,7 +609,7 @@ services:
     restart: unless-stopped
 
   remote:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-56bdabf}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-3b96d26}
     <<: *local-hosts
     env_file:
       - path: .env
@@ -681,7 +681,7 @@ services:
       # this whole value in docker-compose.override.yml.
       SYSTEM_HEALTH_TARGETS: >-
         [{"key":"identity","label":"Identity","urls":["http://keycloak:9000"],"path":"/auth/health/ready",
-           "declaredVersion":"${KEYCLOAK_IMAGE_TAG:-sha-3cbe20c}"},
+           "declaredVersion":"${KEYCLOAK_IMAGE_TAG:-sha-7f0c138}"},
          {"key":"knowledge","label":"Knowledge","urls":["http://daemon:9090"]},
          {"key":"graph-sync","label":"Graph Replica","urls":["http://remote:9091"]},
          {"key":"gateway","label":"Gateway","urls":["http://gateway:4181"]},
@@ -703,7 +703,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-74b0ef7}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-746c628}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -713,7 +713,7 @@ services:
 
   # ── Admin API + Licensing ───────────────────────────────────────────────────
   licensing-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-60b5c81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-10c8ff5}
     env_file: .env
     depends_on:
       postgres-ensure-licensing:
@@ -724,7 +724,7 @@ services:
     restart: "no"
 
   licensing:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-60b5c81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-licensing:${LICENSING_IMAGE_TAG:-sha-10c8ff5}
     env_file: .env
     depends_on:
       licensing-migrate:
@@ -780,7 +780,7 @@ services:
     restart: unless-stopped
 
   admin-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-60b5c81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-admin-api:${ADMIN_API_IMAGE_TAG:-sha-10c8ff5}
     env_file: .env
     depends_on:
       licensing:
@@ -862,7 +862,7 @@ services:
   # (README.md § Upgrades → 2) extracts the release bundle over the project with
   # `tar -xzf`, which restores docker-compose.yml and the service with it.
   updater:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-60b5c81}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-10c8ff5}
     profiles: ["updater"]
     # Deliberately NO `env_file: .env` (unlike its siblings): nothing here is read
     # from the stack's secret env, and the fewer secrets in this container's
@@ -940,7 +940,7 @@ services:
       # pulled — a fresh Docker Hub pull, whose bytes are known to diverge from
       # the origin's (GHCR) for the same tetrix-updater tag. The `image:`-scoped
       # gates never see env values; scripts/assert-compose-origin-prefix.sh does.
-      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-60b5c81}
+      TETRIX_UPDATER_RUNNER_IMAGE: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-updater:${UPDATER_IMAGE_TAG:-sha-10c8ff5}
       # ── The fixed ops hook (Cloud M0.3, Tasks 8/9) ────────────────────────────
       # THIS IS WHAT CLOSES ADR-0022's KNOWN GAP. Compose rollback restores project
       # files and image pins but NOT database migrations, so a failed upgrade used
@@ -1028,7 +1028,7 @@ services:
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
   collectors-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -1039,7 +1039,7 @@ services:
     restart: "no"
 
   collectors-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     env_file:
       - path: .env
         required: true
@@ -1101,7 +1101,7 @@ services:
     restart: unless-stopped
 
   collectors-mcp:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1137,7 +1137,7 @@ services:
     restart: unless-stopped
 
   collectors-dispatcher:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1162,7 +1162,7 @@ services:
     restart: unless-stopped
 
   collectors-worker:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     env_file:
       - path: .env
         required: true
@@ -1184,7 +1184,40 @@ services:
       # capability on the KV mount that mints a short-TTL per-tenant child token per resolve.
       # Do not mount runtime/vault.env into another service: its unprefixed VAULT_* keys are
       # this worker's configuration, not a shared Vault profile.
+      #
+      # Run executor (collectors#1243, ADR-0114; the compose twin of Helm's collectors.runJobs).
+      # The default is `inline`, today's behaviour: the worker runs each pipeline run itself. It is
+      # set explicitly: this bundle does not leave the executor to `auto`. `process` is OPT-IN from
+      # .env (WORKER_RUN_EXECUTOR=process): it runs each pipeline run in a child process of this same
+      # image. The parent samples this container's cgroup and SIGKILLs the child's whole process
+      # group once memory crosses a CEILING below the container's memory limit, so a run that
+      # outgrows the envelope fails alone and the worker, which holds the lease and writes the
+      # outcome, survives. The ceiling is FRACTION of the limit the container really has, never below
+      # MIN_MB. This bundle sets no memory limit on the worker, so with no limit added (for example in
+      # docker-compose.override.yml) there is NO ceiling and the parent only watches; the same holds
+      # when FRACTION is 1 or when MIN_MB reaches the limit. The two ceiling knobs take effect only
+      # under `process` (and are ignored under `inline`). Only this service carries the three; each
+      # is overridable from .env. The default moves to `process` in a later release, once
+      # tetrix-architecture ADR-0044 is Accepted. An image from before the executor (sha-8b8037f and
+      # older) ignores all three; the default pin since 1.1.21 here, sha-1723847, honours them.
+      WORKER_RUN_EXECUTOR: ${WORKER_RUN_EXECUTOR:-inline}
+      WORKER_RUN_MEMORY_CEILING_FRACTION: ${WORKER_RUN_MEMORY_CEILING_FRACTION:-0.8}
+      WORKER_RUN_MEMORY_CEILING_MIN_MB: ${WORKER_RUN_MEMORY_CEILING_MIN_MB:-256}
     command: ["worker"]
+    # Docker's init (tini) as PID 1. The image's PID 1 is `python -m scripts.run_service`, which
+    # waits only on the children it started. When the parent SIGKILLs a run child's process group at
+    # the ceiling, the git and indexer processes that child started are reparented to PID 1 and, with
+    # nothing to wait on them, stay zombies until the container restarts. tini reaps them and forwards
+    # SIGTERM to the worker, so the ADR-0075 drain on `docker compose stop` is unchanged.
+    init: true
+    # Docker stops a container with SIGTERM and, after 10 s by default, SIGKILL. The worker's drain
+    # hold is 30 s (WORKER_DRAIN_REQUEUE_HOLD_SECONDS), and the process executor lengthens the drain:
+    # the parent forwards SIGTERM to the run child, gives it that hold to finish, then records the
+    # child's outcome on the run and its queue message. 40 s covers the hold plus that write. At 10 s
+    # a `docker compose stop` (and the stop inside an upgrade or a backup) kills the container
+    # mid-drain: the outcome is never recorded and the run stays `running` until the reaper writes it
+    # off.
+    stop_grace_period: 40s
     ports:
       - "127.0.0.1:19094:9090"
     healthcheck:
@@ -1224,7 +1257,7 @@ services:
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1275,7 +1308,7 @@ services:
   # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
   # wait-for-daemon init container.
   collectors-hitl:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1317,7 +1350,7 @@ services:
   # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1357,7 +1390,7 @@ services:
   # which is why `depends_on: daemon` is here — the Compose twin of the chart's
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-8b8037f}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1723847}
     env_file: .env
     depends_on:
       collectors-migrate:
