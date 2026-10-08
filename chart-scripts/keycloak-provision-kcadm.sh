@@ -10,6 +10,9 @@ TRUSTED_HOSTS="${KEYCLOAK_TRUSTED_HOSTS:-}"
 # scope the resource does not advertise — see keycloak-dcr-scope-repair.sh for the full
 # reasoning. hitl:write is here for the same reason (the four HITL mutation tools), and this
 # script now creates that client scope below so the allowlist entry is not a no-op (#189).
+# collector:admin is deliberately absent. Anonymous DCR returns 403 and authorize
+# returns invalid_scope if it is advertised. Entitled humans receive it at mint
+# from ensure_collector_admin_mapper on res:api, res:mcp, and graph:read.
 ALLOWED_DCR_SCOPES="${KEYCLOAK_ALLOWED_DCR_SCOPES:-res:mcp graph:read sessions:write hitl:write basic profile email offline_access}"
 ISSUER="${KEYCLOAK_ISSUER:?}"
 AUD_DAEMON="${KEYCLOAK_AUDIENCE_DAEMON:?}"
@@ -19,6 +22,12 @@ PUBLIC_URL="${TETRIX_PUBLIC_URL:?}"
 SPA_BASE="${TETRIX_SPA_BASE_PATH:-}"
 CLIENT_ID="${KEYCLOAK_CLIENT_ID:-tetrix-frontend}"
 KCADM="${KCADM:-/opt/keycloak/bin/kcadm.sh}"
+OWNER_SET_PASSWORD=0
+for _arg in "$@"; do
+  case "$_arg" in
+    --set-owner-password) OWNER_SET_PASSWORD=1 ;;
+  esac
+done
 
 if [ ! -x "${KCADM}" ]; then
   echo "ERROR: kcadm not found at ${KCADM} (tetrix-iam image required)" >&2
@@ -354,8 +363,8 @@ ensure_oidc_builtin_scope profile
 # ------------------------------------------------------------------
 # The four MCP HITL mutation tools (answer/route/dismiss/decline_hitl_question) demand
 # scope hitl:write server-side (collectors mcp_service/app/auth.py::TOOL_SCOPES), but the
-# scope shipped in neither realm import — measured absent on a hosted
-# realm. With no such scope in the realm no token can ever carry it, so all four
+# scope shipped in neither realm import — measured absent on the live tetrix-development
+# realm (#189). With no such scope in the realm no token can ever carry it, so all four
 # tools failed authorization for every caller, and every hitl:write line in the DCR
 # attachment paths was a silent no-op.
 #
@@ -645,7 +654,7 @@ patch_scope_audience "res:mcp" "${AUD_MCP}"
 # here too: any client granted graph:read gets aud=<mcp> regardless of the res:mcp drop.
 # graph:read is MCP-only, so daemon/api/frontend tokens (no graph:read) are unaffected; the
 # MCP verifier matches audience by array-contains. Cursor (omits `scope`, keeps res:mcp) is
-# unchanged.
+# unchanged. See tetrix-ee-helm-chart PR / MCP-connector runbook.
 patch_scope_audience "graph:read" "${AUD_MCP}"
 
 # ------------------------------------------------------------------
@@ -703,26 +712,37 @@ ensure_groups_mapper res:mcp
 ensure_groups_mapper graph:read
 
 # ------------------------------------------------------------------
-# res:api — entitled collector:admin scope mutation (tetrix-iam#19)
+# entitled collector:admin scope mutation (tetrix-iam#19, MCP extension)
+#
+# Same script mapper as the SPA path. It must run on every client scope that
+# actually appears on an MCP access token, because MCP clients cannot request
+# res:api and must not request collector:admin (anonymous DCR 403s and
+# authorize returns invalid_scope). Cursor keeps realm-default res:mcp; Claude
+# and ChatGPT send an explicit RFC 7591 scope and drop res:mcp, so graph:read
+# (PRM scopes_supported) is the scope their token still carries.
+# collector:admin stays OFF ALLOWED_DCR_SCOPES. The script appends it at mint
+# for platform_admin or /orgs/<orgId>/admins and strips it otherwise.
 # ------------------------------------------------------------------
 ensure_collector_admin_mapper() {
-  local sid mapper_name provider_id
-  sid="$(client_scope_id "res:api" || true)"
+  local scope sid mapper_name provider_id list_file
+  scope="$1"
+  sid="$(client_scope_id "${scope}" || true)"
   if [ -z "${sid}" ]; then
-    echo "WARN: client scope res:api not found — skip collector:admin mapper" >&2
+    echo "WARN: client scope ${scope} not found — skip collector:admin mapper" >&2
     return 0
   fi
   mapper_name="collector-admin-if-entitled"
   provider_id="script-append-collector-admin-if-entitled.js"
+  list_file="/tmp/kc-collector-admin-mappers-${scope//:/-}.json"
   if ! "${KCADM}" get "client-scopes/${sid}/protocol-mappers/models" -r "${REALM}" \
-        >/tmp/kc-res-api-mappers.json 2>/tmp/kc-res-api-mappers.err; then
-    echo "WARN: could not list res:api protocol-mappers" >&2
-    cat /tmp/kc-res-api-mappers.err >&2 || true
+        >"${list_file}" 2>"${list_file}.err"; then
+    echo "WARN: could not list ${scope} protocol-mappers" >&2
+    cat "${list_file}.err" >&2 || true
     return 0
   fi
-  if grep -q "\"name\"[[:space:]]*:[[:space:]]*\"${mapper_name}\"" /tmp/kc-res-api-mappers.json 2>/dev/null \
-     || grep -q "${mapper_name}" /tmp/kc-res-api-mappers.json 2>/dev/null; then
-    echo "res:api protocol-mapper ${mapper_name} already present"
+  if grep -q "\"name\"[[:space:]]*:[[:space:]]*\"${mapper_name}\"" "${list_file}" 2>/dev/null \
+     || grep -q "${mapper_name}" "${list_file}" 2>/dev/null; then
+    echo "${scope} protocol-mapper ${mapper_name} already present"
     return 0
   fi
   # Nested config.* via -s fails with "Cannot parse the JSON" on KC 26 kcadm —
@@ -745,13 +765,16 @@ ensure_collector_admin_mapper() {
   if "${KCADM}" create "client-scopes/${sid}/protocol-mappers/models" -r "${REALM}" \
         -f /tmp/kc-collector-admin-mapper.json \
         >/tmp/kc-admin-mapper.log 2>&1; then
-    echo "res:api protocol-mapper += ${mapper_name}"
+    echo "${scope} protocol-mapper += ${mapper_name}"
   else
-    echo "WARN: could not create ${mapper_name} on res:api (image may lack script — bump keycloak.image.tag)" >&2
+    echo "WARN: could not create ${mapper_name} on ${scope} (image may lack script — bump keycloak.image.tag)" >&2
     cat /tmp/kc-admin-mapper.log >&2 || true
   fi
 }
-ensure_collector_admin_mapper
+echo "==> ensuring entitled collector:admin mapper on res:api + res:mcp + graph:read"
+ensure_collector_admin_mapper res:api
+ensure_collector_admin_mapper res:mcp
+ensure_collector_admin_mapper graph:read
 
 # ------------------------------------------------------------------
 # SPA client redirect URIs / webOrigins for this ingress host
@@ -840,6 +863,24 @@ SMTP_SSL="${KEYCLOAK_SMTP_SSL:-true}"
 SMTP_STARTTLS="${KEYCLOAK_SMTP_STARTTLS:-false}"
 
 owner_invite_mode() {
+  # An invite is an EMAIL, and there is nothing to send it with until a realm
+  # SMTP credential exists. Tetrix Cloud does NOT provision one: the Owner signs
+  # in with a password Tetrix Cloud reveals (`owner_credential_reveals` /
+  # `claim_owner_password`, and the portal's own "Regenerate owner password"),
+  # and configures SMTP inside their instance AFTERWARDS. So `cloud` alone must
+  # never select invite mode.
+  #
+  # It used to, unconditionally. The consequences on a cloud tenant were exactly
+  # backwards: this script took the invite branch, deliberately left the Owner
+  # WITHOUT a preset credential ("email-invite mode"), then asked Keycloak to
+  # send an execute-actions email with no mail server configured, got a 5xx and
+  # exited 1 on `smtp_rejected`. The Owner ended up with neither a password nor
+  # an email, and because the one-shot exits non-zero the composite health gate
+  # reports `compose:failed` forever — which also fails the POST-UPGRADE health
+  # check, so every upgrade applied and then rolled back. Measured on `test6` /
+  # tetrix-6de4ae46622eb63b (2026-09-02); `RESEND_API_KEY` is absent from that
+  # VM because no Tetrix Cloud component has ever delivered one.
+  [ -n "${SMTP_PASSWORD}" ] || return 1
   [ "${DEPLOY_MODE}" = "cloud" ] && return 0
   [ "${KEYCLOAK_OWNER_INVITE:-}" = "true" ] && return 0
   return 1
@@ -959,7 +1000,78 @@ send_owner_action_email() {
   owner_invite_result sent ""
 }
 
-if [ -n "${OWNER_EMAIL}" ] && { [ -n "${OWNER_PW}" ] || owner_invite_mode; }; then
+if [ "${OWNER_SET_PASSWORD}" -eq 1 ]; then
+  : "${KEYCLOAK_OWNER_EMAIL:?KEYCLOAK_OWNER_EMAIL is required}"
+  OWNER_EMAIL="${KEYCLOAK_OWNER_EMAIL}"
+  OWNER_PW="${KEYCLOAK_OWNER_PASSWORD:-}"
+  if [ -z "${OWNER_PW}" ]; then
+    # `openssl` IS NOT IN THE PROVISIONING IMAGE. The compose service runs
+    # `badouralix/curl-jq:alpine` — curl and jq, nothing else. Verified live
+    # inside that exact image on tetrix-6de4ae46622eb63b (2026-09-02):
+    # `openssl: ABSENT`, while tr / head / base64 / od / dd / awk are present
+    # and /dev/urandom is readable.
+    #
+    # So `openssl rand` exited 127 "not found", which failed SEND_OWNER_INVITE
+    # with COMMAND_EXIT_NONZERO on all five attempts and left the owner with NO
+    # password on a deployment that was otherwise RUNNING and reachable
+    # (91a3b19b / test6.tetrix.deskree.com). Create looked healthy and the
+    # product was unusable, because nobody could sign in.
+    #
+    # 32 alphanumerics is ~190 bits, matching the 192 the 24-byte openssl call
+    # gave, and avoids base64's `+/=` in a value that travels through JSON, a
+    # URL and a copy-paste. This shell is `set -eu` with NO pipefail, so `head`
+    # closing the pipe is not a failure.
+    OWNER_PW="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32)"
+    # NEVER set an empty password: a silent generator failure would otherwise
+    # hand the Owner account a blank credential.
+    [ -n "${OWNER_PW}" ] || owner_invite_fail owner_password_generation_failed
+  fi
+  OWNER_ID="$("${KCADM}" get users -r "${REALM}" -q "username=${OWNER_EMAIL}" \
+        --fields id --format csv --noquotes 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  if [ -z "${OWNER_ID}" ] || [ "${OWNER_ID}" = "id" ]; then
+    OWNER_ID="$("${KCADM}" create users -r "${REALM}" \
+          -s "username=${OWNER_EMAIL}" \
+          -s "email=${OWNER_EMAIL}" \
+          -s 'enabled=true' \
+          -s 'emailVerified=true' \
+          -i 2>/tmp/kcadm-owner-create.log | tr -d '\r' || true)"
+    if [ -z "${OWNER_ID}" ]; then
+      echo "ERROR: failed to create Owner user" >&2
+      cat /tmp/kcadm-owner-create.log >&2 || true
+      exit 1
+    fi
+  fi
+  if ! "${KCADM}" set-password -r "${REALM}" --userid "${OWNER_ID}" \
+        --new-password "${OWNER_PW}" >/tmp/kcadm-owner-pw.log 2>&1; then
+    echo "ERROR: failed to set Owner password" >&2
+    exit 1
+  fi
+  echo "Owner password set (value not logged)" >&2
+  if command -v jq >/dev/null 2>&1; then
+    jq -cn \
+      --arg deployment "${TETRIX_DEPLOYMENT_ID:-}" \
+      --arg slug "${TETRIX_DEPLOYMENT_SLUG:-}" \
+      --arg kid "${OWNER_ID}" \
+      --arg at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+      --arg login "${OWNER_PW}" \
+      '{
+        schema: "tetrix-cloud-owner-credential.v1",
+        deployment_id: (if $deployment == "" then null else $deployment end),
+        slug: (if $slug == "" then null else $slug end),
+        status: "issued",
+        keycloak_user_id: $kid,
+        issued_at: $at,
+        owner_login: $login
+      }'
+  fi
+  exit 0
+fi
+
+# Same rule as the REST variant: a cloud Owner is seeded with NO credential,
+# because Tetrix Cloud mints the password on demand and needs the account, its
+# role and its org membership to already exist.
+if [ -n "${OWNER_EMAIL}" ] && { [ -n "${OWNER_PW}" ] || owner_invite_mode \
+     || [ "${DEPLOY_MODE}" = "cloud" ]; }; then
   ensure_realm_smtp
   echo "==> ensuring SPA Owner user ${OWNER_EMAIL} (platform_admin)"
   OWNER_ID="$("${KCADM}" get users -r "${REALM}" -q "username=${OWNER_EMAIL}" \

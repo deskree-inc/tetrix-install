@@ -5,8 +5,8 @@
 # offline_access optional scope on anonymous public DCR clients (UUID clientIds).
 # Also stamps access.token.lifespan when KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN is a
 # positive integer (default 3600) AND the client qualifies for the exception:
-# public, with a redirect URI matching KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES (Cursor's
-# two callbacks by default). The lifespan population is deliberately NARROWER than
+# public, with a redirect URI matching KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES (Cursor's two callbacks
+# + the loopback native-app prefixes by default). The lifespan population is deliberately NARROWER than
 # the scope-repair population — see client_is_atl_eligible. Skips clients already OK.
 #
 # Why the WRITE scopes are defaults and not optional: a generic MCP client (Claude Code,
@@ -29,7 +29,7 @@ ADMIN_PW="${KEYCLOAK_ADMIN_PASSWORD:?}"
 DCR_ACCESS_TOKEN_LIFESPAN="${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}"
 # Space-separated redirect-URI prefixes that qualify a client for the ADR-0027 lifespan
 # exception. Cursor's two callbacks by default; empty disables the stamp entirely.
-DCR_ATL_REDIRECT_PREFIXES="${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/}"
+DCR_ATL_REDIRECT_PREFIXES="${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/ http://localhost: http://127.0.0.1:}"
 # ADR-0027 D3 ceiling for the stamped value (see client_needs_atl).
 DCR_ACCESS_TOKEN_LIFESPAN_MAX="${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN_MAX:-7200}"
 
@@ -47,12 +47,29 @@ http() {
     /*) _url="${ADMIN_BASE}${_path}" ;;
     *) _url="${REALM_BASE}/${_path}" ;;
   esac
-  HTTP_CODE="$(curl -sS -o /tmp/kc-body -w '%{http_code}' \
-    -X "${_method}" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    "$@" \
-    "${_url}" 2>/dev/null || echo "000")"
+  _kc_auth_retried=0
+  while :; do
+    HTTP_CODE="$(curl -sS -o /tmp/kc-body -w '%{http_code}' \
+      -X "${_method}" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      "$@" \
+      "${_url}" 2>/dev/null || echo "000")"
+  # ── chart#267: the whole run used to ride ONE master-realm admin token whose
+  # lifespan (Keycloak default: 60s) is shorter than a healthy run (61-64s
+  # measured). A 401 from the Admin REST API therefore means "token expired
+  # mid-run", not "forbidden" (permission problems are 403). Re-authenticate
+  # once and replay the request; if re-auth itself fails, fall through with
+  # the original 401 so callers behave exactly as before.
+    if [ "${HTTP_CODE}" = "401" ] && [ "${_kc_auth_retried}" = "0" ]; then
+      _kc_auth_retried=1
+      echo "==> admin token rejected (http=401) — re-authenticating and retrying once (chart#267)" >&2
+      if obtain_token; then
+        continue
+      fi
+    fi
+    break
+  done
 }
 
 obtain_token() {
@@ -119,8 +136,9 @@ client_has_mcp_defaults() {
 # filter below), because a missing MCP scope is a functional break for every vendor. A longer
 # bearer is not: it is a security exception, so it gets the narrower population.
 #   · public client only — the exception is for apps that keep the token on disk
-#   · a redirect URI matching DCR_ATL_REDIRECT_PREFIXES — Cursor is the client with the
-#     refresh bug; Claude Code measured 3 refreshes / 0 errors on the realm's 300s
+#   · a redirect URI matching DCR_ATL_REDIRECT_PREFIXES — Cursor (custom scheme / cursor.com)
+#     and, since ADR-0027 Amendment 1, loopback native apps such as Claude Code, whose lost
+#     refresh replies trip Keycloak reuse detection (tetrix-architecture#151)
 # Empty prefixes ⇒ nothing qualifies, so the exception cannot widen by being forgotten.
 # Mirrors DcrDefaultScopesPolicy.isLifespanEligible in tetrix-iam — keep the two in step.
 client_is_atl_eligible() {
