@@ -241,7 +241,7 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-15259be` is a one-way schema advance.** The migrate job runs
+**Collectors `sha-15259be` adds no migration of its own, but the schema stays one-way.** The migrate job runs
 `alembic upgrade head`. From `sha-15259be` / `sha-6e4d334` / `sha-1723847` that applies
 `0042_inbox_processed_at` (one plain index on `inbox.processed_at`, no backfill;
 `sha-6e4d334` and `sha-15259be` add no migration of their own). From `sha-f3ac783` / `sha-8b8037f` that applies
