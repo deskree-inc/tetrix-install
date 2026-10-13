@@ -6,25 +6,32 @@ Deskree GitHub repository.
 
 Latest published release: **1.1.16**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.16)).
-This tree's `VERSION` is **1.1.22** (not released yet), matching Helm chart 1.1.22:
-daemon/remote `sha-624356d`, collectors `sha-3319b28`, front-end `sha-4fd9dbb`,
+This tree's `VERSION` is **1.1.23** (not released yet), matching Helm chart 1.1.23:
+daemon/remote `sha-624356d`, collectors `sha-19e9c7b`, front-end `sha-4fd9dbb`,
 gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-10c8ff5`. 1.1.22 is a hotfix on 1.1.21 that moves only
-the daemon/remote and collectors pins:
+admin-api / licensing / updater `sha-5ea730e`. 1.1.23 is the second Avenga hotfix. It moves
+only the collectors and admin-api / licensing / updater pins:
 
-- **Collectors `sha-3319b28`.** A stale queue claim next to a ready one no longer
-  crash-loops every collectors worker (collectors#1298/#1309), and a dying collectors
-  process writes a `process.fatal_exit` operational-log record saying why. The worker
-  builds the graph snapshot a page at a time, so a large rebuild no longer runs it out of
-  memory, and a rebuild that keeps dying dead-letters (#1308). GitLab pipelines link to
-  their workflow (`has_run`, #1305), and diagnostics stop flagging structurally linked
-  workflows and releases (#1306). `SNAPSHOT_BUILD_MODE` and `SNAPSHOT_BUILD_PAGE_SIZE` are
-  optional; the default streams.
-- **Daemon/remote `sha-624356d`.** The native code index (`INDEX_BATCH`) compares entity ids
-  in one spelling, so a code-index run no longer rolls back with
-  `row <id> neither written nor present` (tetrix-ee#216).
+- **Collectors `sha-19e9c7b`.** The correlation read leaves each entity's `_raw` payload in
+  the daemon, so correlation fits a smaller worker on a large graph (collectors#1313). An
+  admin-only MCP tool, `diagnostics_platform`, reads the updater's upgrade jobs and release
+  history (#1315). This build keeps 1.1.22's crash-loop and streamed-snapshot fixes
+  (#1309, #1308).
+- **Admin-api / licensing / updater `sha-5ea730e`.** A failed in-app upgrade reports Helm's
+  `Error:` line first, and the release history carries each revision's description
+  (tetrix-admin-api#186). The Platform status says why an upgrade is unavailable (#183).
+- **`PLATFORM_DIAGNOSTICS_TOKEN`** (optional, empty by default) is passed to admin-api and
+  collectors-mcp. Set one shared random value in `.env` to let the MCP's
+  `diagnostics_platform` read the updater's evidence. Left empty, those routes answer 404 and
+  the tool says "not configured".
 
-No migration, no new required env. Coming from 1.1.16 instead, the stack also applies
+From 1.1.22: no migration, no new required env.
+
+Earlier, 1.1.22 moved the collectors to `sha-3319b28` (a stale queue claim no longer
+crash-loops the worker; the graph snapshot is built a page at a time) and the daemon/remote to
+`sha-624356d` (the native code index `INDEX_BATCH` uses canonical entity ids).
+
+Coming from 1.1.16 instead, the stack also applies
 daemon migration `021_tetrix_support_role`, collectors `0042_inbox_processed_at` and
 licensing `0004_inspection_window` on the next `up` (those came in 1.1.21). 1.1.21 added the
 Tetrix support account (the `tetrix_support` role: an org admin for access, no seat; it
@@ -253,8 +260,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-3319b28` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-3319b28` adds no migration of its own, nor did `sha-6e4d334`.
+**Collectors `sha-19e9c7b` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-19e9c7b` adds no migration of its own, nor did `sha-3319b28` or `sha-6e4d334`.
 From `sha-6e4d334` / `sha-1723847` that applies
 `0042_inbox_processed_at` (one plain index on `inbox.processed_at`, no backfill). From `sha-f3ac783` / `sha-8b8037f` that applies
 `0040_observability_failure_acks` and `0041_observability_indexes` (an additive table and
@@ -271,7 +278,7 @@ and `0031_findings` (additive tables). After that, `alembic_version` is
 `0042_inbox_processed_at`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-3319b28` back, or restore the `control_plane` database. The only signal that 0030
+`sha-19e9c7b` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
