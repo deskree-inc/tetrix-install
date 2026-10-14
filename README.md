@@ -4,28 +4,37 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.16**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.16)).
-This tree's `VERSION` is **1.1.23** (not released yet), matching Helm chart 1.1.23:
-daemon/remote `sha-624356d`, collectors `sha-19e9c7b`, front-end `sha-4fd9dbb`,
+Latest published release: **1.1.23**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.23)).
+This tree's `VERSION` is **1.1.24** (not released yet), matching Helm chart 1.1.24:
+daemon/remote `sha-624356d`, collectors `sha-61ad14a`, front-end `sha-c2f1e10`,
 gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-5ea730e`. 1.1.23 is the second Avenga hotfix. It moves
-only the collectors and admin-api / licensing / updater pins:
+admin-api / licensing / updater `sha-4658be2`. 1.1.24 makes a failing in-app update visible
+before anyone presses Update, and recoverable from the UI when a cluster admission policy traps it.
+It moves the admin-api trio, the front-end and the collectors:
 
-- **Collectors `sha-19e9c7b`.** The correlation read leaves each entity's `_raw` payload in
-  the daemon, so correlation fits a smaller worker on a large graph (collectors#1313). An
-  admin-only MCP tool, `diagnostics_platform`, reads the updater's upgrade jobs and release
-  history (#1315). This build keeps 1.1.22's crash-loop and streamed-snapshot fixes
-  (#1309, #1308).
-- **Admin-api / licensing / updater `sha-5ea730e`.** A failed in-app upgrade reports Helm's
-  `Error:` line first, and the release history carries each revision's description
-  (tetrix-admin-api#186). The Platform status says why an upgrade is unavailable (#183).
-- **`PLATFORM_DIAGNOSTICS_TOKEN`** (optional, empty by default) is passed to admin-api and
-  collectors-mcp. Set one shared random value in `.env` to let the MCP's
-  `diagnostics_platform` read the updater's evidence. Left empty, those routes answer 404 and
-  the tool says "not configured".
+- **Admin-api / licensing / updater `sha-4658be2`** (tetrix-admin-api#189–#194). On Helm installs:
+  - before an update or a Recover, the updater dry-runs every object through the cluster's
+    admission policies;
+  - a release whose rollback a policy refuses can be recovered by upgrading forward;
+  - the updater checks whether its own account may do what Helm is about to do;
+  - its Jobs pass Pod Security `restricted`.
 
-From 1.1.22: no migration, no new required env.
+  Those features are Helm-only. A Compose install takes the same build, with no behavior change
+  for it.
+- **Front-end `sha-c2f1e10`.** The Platform card shows the release history, the error that left a
+  release stuck, the admission check before an update, and the roll-forward recovery
+  (tetrix-front-end#333–#337).
+- **Collectors `sha-61ad14a`.** The admin-only MCP triage reports updates blocked by admission and
+  the updater's readiness (tetrix-collectors#1318, #1319).
+
+From 1.1.23: no migration, no new required env.
+
+Earlier, 1.1.23 moved the collectors to `sha-19e9c7b` (the correlation read leaves `_raw` in
+the daemon, collectors#1313; the admin-only `diagnostics_platform` MCP tool, #1315) and the
+admin-api trio to `sha-5ea730e` (a failed in-app upgrade reports Helm's `Error:` line first,
+admin-api#186). It also added the optional `PLATFORM_DIAGNOSTICS_TOKEN`, passed to admin-api and
+collectors-mcp so the MCP can read the updater's evidence.
 
 Earlier, 1.1.22 moved the collectors to `sha-3319b28` (a stale queue claim no longer
 crash-loops the worker; the graph snapshot is built a page at a time) and the daemon/remote to
@@ -260,8 +269,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-19e9c7b` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-19e9c7b` adds no migration of its own, nor did `sha-3319b28` or `sha-6e4d334`.
+**Collectors `sha-61ad14a` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-61ad14a` adds no migration of its own, nor did `sha-19e9c7b`, `sha-3319b28` or `sha-6e4d334`.
 From `sha-6e4d334` / `sha-1723847` that applies
 `0042_inbox_processed_at` (one plain index on `inbox.processed_at`, no backfill). From `sha-f3ac783` / `sha-8b8037f` that applies
 `0040_observability_failure_acks` and `0041_observability_indexes` (an additive table and
@@ -278,7 +287,7 @@ and `0031_findings` (additive tables). After that, `alembic_version` is
 `0042_inbox_processed_at`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-19e9c7b` back, or restore the `control_plane` database. The only signal that 0030
+`sha-61ad14a` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
