@@ -124,6 +124,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.23 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.24 published tags and does not pass --quiet"
 fi
 exit "$fail"
