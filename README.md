@@ -4,9 +4,9 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.23**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.23)).
-This tree's `VERSION` is **1.1.24** (not released yet), matching Helm chart 1.1.24:
+Latest published release: **1.1.24**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.24)).
+This tree's `VERSION` is **1.1.24**, matching Helm chart 1.1.24:
 daemon/remote `sha-624356d`, collectors `sha-61ad14a`, front-end `sha-c2f1e10`,
 gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-4658be2`. 1.1.24 makes a failing in-app update visible
@@ -90,7 +90,7 @@ TLS (cert-manager ClusterIssuer **or** a pre-created TLS secret).
 ```bash
 helm upgrade --install tetrix \
   oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-  --version 1.1.5 \
+  --version 1.1.24 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -107,7 +107,7 @@ A starter values file is in [`helm/values-example.yaml`](helm/values-example.yam
 A commented customer-safe skeleton is [`helm/values-reference.yaml`](helm/values-reference.yaml).
 The curated parameter catalog (every typical key, Table 1.8-G secret keys, unlicensed
 path, external DBs, opt-in collectors) is **[`HELM.md`](HELM.md)**.
-You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5`
+You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.24`
 for the machine-readable full catalog.
 
 **Without a license token** (Docker Hub / air-gapped / your own mirror).
@@ -116,7 +116,7 @@ secret first or pods stay in `ImagePullBackOff`:
 
 ```bash
 helm upgrade --install tetrix \
-  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5 \
+  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.24 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -138,12 +138,12 @@ Requires Docker + Compose v2.24+, `openssl`, `curl`, and `python3`.
 ### 1 — Get these files
 
 **Production (recommended):** download the checksummed release asset from this
-repository. SHA-256 is also in the [v1.1.5 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)
+repository. SHA-256 is also in the [v1.1.24 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.24)
 (`bundle_sha256` in `public-release.json`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 1.1.5 --sha256 acbc3a0e066717b323e616d98868cb358e7bbaa2bd5291febd68b0e7339ded57 ~/tetrix-docker
+  | bash -s -- --version 1.1.24 --sha256 8a8f8b5ae876332ec82e7106a56e7d8911bc74efd8e686ec334f56201c53a2df ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 
