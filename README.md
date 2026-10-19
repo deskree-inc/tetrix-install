@@ -7,11 +7,11 @@ Deskree GitHub repository.
 Latest published release: **1.1.24**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.24)).
 This tree's `VERSION` is **1.1.25** (not released yet), matching Helm chart 1.1.25:
-daemon/remote `sha-624356d`, collectors `sha-60087ad`, front-end `sha-c2f1e10`,
+daemon/remote `sha-624356d`, collectors `sha-60087ad`, front-end `sha-fb128fa`,
 gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-349d602`. 1.1.25 makes the graph snapshot of a large graph
 fit its size limit and say so when it cannot, and fixes the updater's Pod Security pre-update check.
-It moves the collectors and the admin-api trio:
+It moves the collectors, the admin-api trio and the front-end:
 
 - **Collectors `sha-60087ad`** (tetrix-collectors#1345, #1336, #1338, #1337, #1349 and the rest
   of `61ad14a..60087ad`):
@@ -32,7 +32,8 @@ It moves the collectors and the admin-api trio:
 - **Keycloak stays on `sha-7f0c138`.** A newer image (tetrix-iam `sha-04b1e55`, Keycloak 26.8.1)
   is published, and it is held on purpose: it needs its own chart change (a `Recreate` rollout
   strategy, and an SMTP release note) before it ships.
-- **Front-end stays on `sha-c2f1e10`.** A later repin moves it.
+- **Front-end `sha-fb128fa`** (tetrix-front-end#342). The observability Resources view shows each
+  pod's requests and limits, and the Postgres memory limit.
 
 From 1.1.24: the collectors migrate job applies `0043_graph_snapshot_refusals`; no new required env.
 
