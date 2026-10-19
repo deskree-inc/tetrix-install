@@ -4,31 +4,45 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.23**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.23)).
-This tree's `VERSION` is **1.1.24** (not released yet), matching Helm chart 1.1.24:
-daemon/remote `sha-624356d`, collectors `sha-61ad14a`, front-end `sha-c2f1e10`,
+Latest published release: **1.1.24**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.24)).
+This tree's `VERSION` is **1.1.25** (not released yet), matching Helm chart 1.1.25:
+daemon/remote `sha-624356d`, collectors `sha-60087ad`, front-end `sha-c2f1e10`,
 gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-4658be2`. 1.1.24 makes a failing in-app update visible
-before anyone presses Update, and recoverable from the UI when a cluster admission policy traps it.
-It moves the admin-api trio, the front-end and the collectors:
+admin-api / licensing / updater `sha-349d602`. 1.1.25 makes the graph snapshot of a large graph
+fit its size limit and say so when it cannot, and fixes the updater's Pod Security pre-update check.
+It moves the collectors and the admin-api trio:
 
-- **Admin-api / licensing / updater `sha-4658be2`** (tetrix-admin-api#189–#194). On Helm installs:
-  - before an update or a Recover, the updater dry-runs every object through the cluster's
-    admission policies;
-  - a release whose rollback a policy refuses can be recovered by upgrading forward;
-  - the updater checks whether its own account may do what Helm is about to do;
-  - its Jobs pass Pod Security `restricted`.
+- **Collectors `sha-60087ad`** (tetrix-collectors#1345, #1336, #1338, #1337, #1349 and the rest
+  of `61ad14a..60087ad`):
+  - the graph snapshot stops exporting `_search_text`, and a code node's `signature` and
+    `children`, so a large graph's snapshot stays under the size limit (#1345);
+  - a snapshot rebuild that is refused as too large is recorded, named in the MCP triage and
+    backed off instead of retried every sync (#1336);
+  - `detect_findings` reads only the kinds it declares (#1338);
+  - the saga's stop probe runs on its own session, so a dropped probe cannot lose a finished
+    step (#1337);
+  - a GitHub credential without Actions read no longer fails the whole sync (#1349).
+- **Admin-api / licensing / updater `sha-349d602`** (tetrix-admin-api#196). On Helm installs the
+  updater's admission check judges Pod Security from the dry-run warning the workload itself
+  produces. That is Helm-only. A Compose install takes the same build, with no
+  behavior change for it.
+- **Migration `0043_graph_snapshot_refusals`** (collectors): one new empty table, no backfill.
+  The admin-api build has no migration, and nothing adds a required env var.
+- **Keycloak stays on `sha-7f0c138`.** A newer image (tetrix-iam `sha-04b1e55`, Keycloak 26.8.1)
+  is published, and it is held on purpose: it needs its own chart change (a `Recreate` rollout
+  strategy, and an SMTP release note) before it ships.
+- **Front-end stays on `sha-c2f1e10`.** A later repin moves it.
 
-  Those features are Helm-only. A Compose install takes the same build, with no behavior change
-  for it.
-- **Front-end `sha-c2f1e10`.** The Platform card shows the release history, the error that left a
-  release stuck, the admission check before an update, and the roll-forward recovery
-  (tetrix-front-end#333–#337).
-- **Collectors `sha-61ad14a`.** The admin-only MCP triage reports updates blocked by admission and
-  the updater's readiness (tetrix-collectors#1318, #1319).
+From 1.1.24: the collectors migrate job applies `0043_graph_snapshot_refusals`; no new required env.
 
-From 1.1.23: no migration, no new required env.
+Earlier, 1.1.24 moved the admin-api trio to `sha-4658be2` (the updater dry-runs every object
+through the cluster's admission policies before an update or a Recover, a release whose rollback a
+policy refuses can be recovered by upgrading forward, and the updater checks its own account's
+permissions; tetrix-admin-api#189–#194), the front-end to `sha-c2f1e10` (the Platform card shows
+the release history, the stuck-release error, the admission check and the roll-forward recovery;
+tetrix-front-end#333–#337) and the collectors to `sha-61ad14a` (the admin-only MCP triage reports
+updates blocked by admission and the updater's readiness; tetrix-collectors#1318, #1319).
 
 Earlier, 1.1.23 moved the collectors to `sha-19e9c7b` (the correlation read leaves `_raw` in
 the daemon, collectors#1313; the admin-only `diagnostics_platform` MCP tool, #1315) and the
@@ -269,10 +283,11 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-61ad14a` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-61ad14a` adds no migration of its own, nor did `sha-19e9c7b`, `sha-3319b28` or `sha-6e4d334`.
-From `sha-6e4d334` / `sha-1723847` that applies
-`0042_inbox_processed_at` (one plain index on `inbox.processed_at`, no backfill). From `sha-f3ac783` / `sha-8b8037f` that applies
+**Collectors `sha-60087ad` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-60087ad` adds `0043_graph_snapshot_refusals` (a new empty table, no
+backfill); `sha-61ad14a`, `sha-19e9c7b`, `sha-3319b28` and `sha-6e4d334` add no migration of their own.
+From `sha-6e4d334` / `sha-1723847` that applies `0042_inbox_processed_at` and then `0043_graph_snapshot_refusals`.
+`0042_inbox_processed_at` is one plain index on `inbox.processed_at`, no backfill. From `sha-f3ac783` / `sha-8b8037f` that applies
 `0040_observability_failure_acks` and `0041_observability_indexes` (an additive table and
 indexes, no backfill). From `sha-8b8037f` / `sha-d43cbb8` that applies `0038_infra_event_dedupe`
 and `0039_resource_samples` (additive tables, no backfill). From `sha-a21e125` that applies `0037_snapshot_build_started`
@@ -284,10 +299,10 @@ columns and indexes, no backfill). An install older than `sha-d8aa8ee` also appl
 `0030_redact_git_tokens` (it rewrites GitHub tokens already stored in the run ledger; the
 downgrade is a no-op, and any token it redacts was already readable and must be rotated)
 and `0031_findings` (additive tables). After that, `alembic_version` is
-`0042_inbox_processed_at`. Restoring an older collectors pin and running
+`0043_graph_snapshot_refusals`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-61ad14a` back, or restore the `control_plane` database. The only signal that 0030
+`sha-60087ad` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
