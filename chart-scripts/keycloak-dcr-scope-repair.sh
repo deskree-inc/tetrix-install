@@ -18,6 +18,8 @@
 # so a real user authenticates, and the MCP server still enforces org membership plus the
 # per-tool scope check (ADR-0057 §3). Once the server advertises the full set in its PRM,
 # these can move back to optional.
+# Optionally (KEYCLOAK_DCR_STALE_CLEANUP=true) deletes anonymous DCR clients that nobody has
+# used for KEYCLOAK_DCR_STALE_IDLE_DAYS — see stale_cleanup().
 # Used by the optional keycloak.provision.dcrScopeRepair CronJob and safe to run
 # repeatedly. Requires: curl, jq, sh.
 set -eu
@@ -32,6 +34,15 @@ DCR_ACCESS_TOKEN_LIFESPAN="${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}"
 DCR_ATL_REDIRECT_PREFIXES="${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/ http://localhost: http://127.0.0.1:}"
 # ADR-0027 D3 ceiling for the stamped value (see client_needs_atl).
 DCR_ACCESS_TOKEN_LIFESPAN_MAX="${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN_MAX:-7200}"
+# Stale anonymous-DCR client cleanup (chart keycloak.provision.dcrScopeRepair.staleCleanup).
+# OFF unless KEYCLOAK_DCR_STALE_CLEANUP=true. See stale_cleanup() for the rules.
+STALE_CLEANUP="${KEYCLOAK_DCR_STALE_CLEANUP:-false}"
+STALE_IDLE_DAYS="${KEYCLOAK_DCR_STALE_IDLE_DAYS:-30}"
+STALE_MAX_DELETES="${KEYCLOAK_DCR_STALE_MAX_DELETES:-20}"
+# Bounds the attribute writes of one tick. The first tick after enabling the cleanup stamps
+# every client once; capping it spreads that over a few ticks instead of overrunning the
+# CronJob's activeDeadlineSeconds.
+STALE_MAX_STAMPS="${KEYCLOAK_DCR_STALE_MAX_STAMPS:-100}"
 
 ADMIN_BASE="${KC}/admin"
 REALM_BASE="${ADMIN_BASE}/realms/${REALM}"
@@ -204,19 +215,176 @@ obtain_token || exit 1
 http GET client-scopes || exit 1
 cp /tmp/kc-body /tmp/kc-scopes.json
 
+# THE population this script may touch, defined ONCE and used by both the scope repair and
+# the stale cleanup so they cannot drift apart: interactive DCR clients — UUID-shaped
+# clientId, standard flow on, no service account, not a named platform client. The cleanup
+# once ran its own narrower filter over the whole realm and would have deleted
+# tetrix-frontend; sharing this one is what makes that impossible.
+DCR_ROW_FILTER='select(.standardFlowEnabled==true and (.serviceAccountsEnabled|not))
+  | select(.clientId|test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"))
+  | select(.clientId as $c | ["tetrix-frontend","tetrix-admin-api","tetrix-account-verify","wellclaudecode000001"] | index($c) | not)'
+
+# Page through EVERY client. A single `clients?max=500` page was fine while Keycloak's
+# anonymous cap was 200, but the cap is now configurable (keycloak.provision.dcrMaxClients,
+# default 500) and a realm at capacity holds that many DCR clients PLUS the built-ins — a
+# 500-row page would silently skip the tail, which neither the scope repair nor the stale
+# cleanup may do. Bounded at 10000 rows so a misbehaving endpoint cannot loop forever.
+list_all_clients() {
+  _lc_first=0
+  _lc_page=200
+  echo '[]' > /tmp/kc-all-clients.json
+  while :; do
+    http GET "clients?first=${_lc_first}&max=${_lc_page}" || return 1
+    if [ "${HTTP_CODE}" != "200" ]; then
+      echo "WARN: could not list clients (first=${_lc_first}) http=${HTTP_CODE}" >&2
+      return 1
+    fi
+    _lc_n="$(jq 'length' /tmp/kc-body)"
+    jq -s '.[0] + .[1]' /tmp/kc-all-clients.json /tmp/kc-body > /tmp/kc-all-clients.tmp \
+      && mv /tmp/kc-all-clients.tmp /tmp/kc-all-clients.json
+    [ "${_lc_n}" -lt "${_lc_page}" ] && break
+    _lc_first=$((_lc_first + _lc_page))
+    [ "${_lc_first}" -ge 10000 ] && break
+  done
+  return 0
+}
+
+# ── Stale anonymous-DCR client cleanup ────────────────────────────────────────────────────
+# Cursor and the claude.ai connector each register a NEW client on every connect, so idle
+# clients pile up until the realm hits Keycloak's Max Clients Limit and refuses every
+# registration (dogfood: 200/200 on 2026-10-10). This removes the idle ones.
+#
+# WHO is a candidate: the DCR rows above (UUID clientId, standard flow, no service account,
+# not a named platform client) that are PUBLIC, plus CONFIDENTIAL ones named "Claude" (the
+# claude.ai connector registers confidential). Nothing else can be touched.
+#
+# WHAT "idle" means. Keycloak keeps no creation time for a public client and realm events
+# expire after days, so "unused for N days" cannot be read from Keycloak — and a client
+# registered a second ago has no session yet either. So this loop keeps its own record in two
+# client attributes, written on the tick that first sees the client / sees it in use:
+#   tetrix.dcr.first_seen  epoch seconds, written once
+#   tetrix.dcr.last_active epoch seconds, refreshed (at most hourly) while the client holds an
+#                          active or offline session or appears in a recent token event
+# A client is deleted only when BOTH are older than STALE_IDLE_DAYS and it holds no active or
+# offline session right now. The first tick therefore only stamps; nothing is deleted for
+# STALE_IDLE_DAYS after enabling.
+#
+# ORDER: this runs BEFORE the per-client scope repair below. That repair issues one or two
+# requests per client, so on a realm near its cap it can outlast the CronJob's
+# activeDeadlineSeconds (94s measured at 200 clients, deadline 120s); doing the cleanup first
+# means it always runs, and the repair then has fewer clients to walk.
+#
+# SAFETY: an unreadable session view means no cleanup at all (never act on a partial view);
+# attribute writes MERGE into a fresh GET of the client so the ADR-0027 lifespan stamp from
+# earlier in this same tick survives; deletes are capped per tick; each delete logs the
+# client's representation so it can be recreated.
+stale_cleanup() {
+  [ "${STALE_CLEANUP}" = "true" ] || return 0
+  case "${STALE_IDLE_DAYS}" in
+    ""|0|*[!0-9]*) echo "WARN: KEYCLOAK_DCR_STALE_IDLE_DAYS='${STALE_IDLE_DAYS}' is not a positive integer — stale cleanup skipped" >&2; return 0 ;;
+  esac
+  case "${STALE_MAX_DELETES}" in ""|*[!0-9]*) STALE_MAX_DELETES=20 ;; esac
+  case "${STALE_MAX_STAMPS}" in ""|*[!0-9]*) STALE_MAX_STAMPS=100 ;; esac
+
+  http GET "client-session-stats" || return 0
+  if [ "${HTTP_CODE}" != "200" ]; then
+    echo "WARN: client-session-stats http=${HTTP_CODE} — stale cleanup skipped (no cleanup on a partial view)" >&2
+    return 0
+  fi
+  cp /tmp/kc-body /tmp/kc-stale-stats.json
+  http GET "events?type=CODE_TO_TOKEN&type=REFRESH_TOKEN&max=2000" || return 0
+  if [ "${HTTP_CODE}" != "200" ]; then
+    echo "WARN: events http=${HTTP_CODE} — stale cleanup skipped (no cleanup on a partial view)" >&2
+    return 0
+  fi
+  cp /tmp/kc-body /tmp/kc-stale-events.json
+
+  _now="$(date +%s)"
+  _idle_s=$((STALE_IDLE_DAYS * 86400))
+  jq -c --slurpfile stats /tmp/kc-stale-stats.json --slurpfile events /tmp/kc-stale-events.json \
+    --argjson now "${_now}" --argjson idle "${_idle_s}" '
+    def num: (. // "") | tostring | (try tonumber catch null);
+    ([$stats[0][]? | select(((.active // 0) + (.offline // 0)) > 0) | .clientId]
+      + [$events[0][]? | .clientId] | unique) as $act
+    | .[]
+    | '"${DCR_ROW_FILTER}"'
+    | select(.publicClient == true or .name == "Claude")
+    | . as $c
+    | (any($act[]; . == $c.clientId)) as $active
+    | ($c.attributes["tetrix.dcr.first_seen"] | num) as $fs
+    | ($c.attributes["tetrix.dcr.last_active"] | num) as $la
+    | if $fs == null then
+        {id: $c.id, clientId: $c.clientId, name: $c.name, action: "stamp",
+         first_seen: $now, last_active: (if $active then $now else $la end)}
+      elif $active then
+        (if ($la == null or ($now - $la) > 3600)
+         then {id: $c.id, clientId: $c.clientId, name: $c.name, action: "stamp", first_seen: $fs, last_active: $now}
+         else empty end)
+      else
+        ([$fs, ($la // 0)] | max) as $ref
+        | (if ($now - $ref) > $idle
+           then {id: $c.id, clientId: $c.clientId, name: $c.name, action: "delete",
+                 idle_days: ((($now - $ref) / 86400) | floor)}
+           else empty end)
+      end' /tmp/kc-all-clients.json > /tmp/kc-stale-plan.jsonl
+
+  _stamped=0
+  _deleted=0
+  _capped=0
+  while read -r _p; do
+    [ -n "${_p}" ] || continue
+    _pid="$(echo "${_p}" | jq -r '.id')"
+    _pcid="$(echo "${_p}" | jq -r '.clientId')"
+    case "$(echo "${_p}" | jq -r '.action')" in
+      stamp)
+        if [ "${_stamped}" -ge "${STALE_MAX_STAMPS}" ]; then _capped=$((_capped + 1)); continue; fi
+        http GET "clients/${_pid}" || continue
+        [ "${HTTP_CODE}" = "200" ] || continue
+        echo "${_p}" | jq --slurpfile cur /tmp/kc-body '
+          {attributes: (($cur[0].attributes // {})
+            + {"tetrix.dcr.first_seen": (.first_seen | tostring)}
+            + (if .last_active == null then {} else {"tetrix.dcr.last_active": (.last_active | tostring)} end))}' \
+          > /tmp/kc-stale-stamp.json
+        http PUT "clients/${_pid}" --data-binary @/tmp/kc-stale-stamp.json
+        case "${HTTP_CODE}" in
+          200|204) _stamped=$((_stamped + 1)) ;;
+          *) echo "WARN: stale-cleanup stamp rejected for client ${_pcid} http=${HTTP_CODE}" >&2 ;;
+        esac
+        ;;
+      delete)
+        if [ "${_deleted}" -ge "${STALE_MAX_DELETES}" ]; then _capped=$((_capped + 1)); continue; fi
+        http GET "clients/${_pid}" || continue
+        [ "${HTTP_CODE}" = "200" ] || continue
+        _rep="$(jq -c '{id, clientId, name, publicClient, redirectUris, attributes}' /tmp/kc-body)"
+        http DELETE "clients/${_pid}"
+        if [ "${HTTP_CODE}" = "204" ]; then
+          _deleted=$((_deleted + 1))
+          echo "DCR-STALE-DELETED idle_days=$(echo "${_p}" | jq -r '.idle_days') client=${_rep}"
+        else
+          echo "WARN: stale-cleanup delete rejected for client ${_pcid} http=${HTTP_CODE}" >&2
+        fi
+        ;;
+    esac
+  done < /tmp/kc-stale-plan.jsonl
+  _stale_deleted="${_deleted}"
+  echo "dcr-stale-cleanup done stamped=${_stamped} deleted=${_deleted} capped=${_capped} idle_days=${STALE_IDLE_DAYS}"
+}
+
 repaired=0
 atl_repaired=0
 atl_failed=0
-http GET "clients?max=500" || exit 0
+list_all_clients || exit 0
+# Cleanup first (see the ORDER note above), then re-list so the repair walks only survivors.
+stale_cleanup
+if [ "${STALE_CLEANUP}" = "true" ] && [ "${_stale_deleted:-0}" -gt 0 ]; then
+  list_all_clients || exit 0
+fi
 # CONFIDENTIAL DCR clients must be included. claude.ai registers with
 # token_endpoint_auth_method=client_secret_post, so its client is confidential; a
 # .publicClient==true filter skipped every one of them forever while Cursor (public) was
 # healed within one tick. The remaining guards still bound this to DCR-registered
 # interactive clients: UUID-shaped clientId, standard flow on, no service account.
-jq -c '.[] | select(.standardFlowEnabled==true and (.serviceAccountsEnabled|not))
-  | select(.clientId|test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"))
-  | select(.clientId as $c | ["tetrix-frontend","tetrix-admin-api","tetrix-account-verify","wellclaudecode000001"] | index($c) | not)' \
-  /tmp/kc-body > /tmp/kc-dcr-rows.jsonl
+jq -c ".[] | ${DCR_ROW_FILTER}" /tmp/kc-all-clients.json > /tmp/kc-dcr-rows.jsonl
 # Read from a FILE, not a pipe: `... | while read` runs the loop body in a subshell, so every
 # `repaired=$((repaired + 1))` was lost and the summary always printed repaired=0 even when it
 # had just logged repairs. A redirect keeps the loop in this shell.

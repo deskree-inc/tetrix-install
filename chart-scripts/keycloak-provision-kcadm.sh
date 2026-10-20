@@ -14,6 +14,16 @@ TRUSTED_HOSTS="${KEYCLOAK_TRUSTED_HOSTS:-}"
 # returns invalid_scope if it is advertised. Entitled humans receive it at mint
 # from ensure_collector_admin_mapper on res:api, res:mcp, and graph:read.
 ALLOWED_DCR_SCOPES="${KEYCLOAK_ALLOWED_DCR_SCOPES:-res:mcp graph:read sessions:write hitl:write basic profile email offline_access}"
+# Anonymous Max Clients Limit and strict-failure mode — same contract as the REST
+# provisioner (scripts/keycloak-provision-rest.sh has the full reasoning). Empty
+# KEYCLOAK_DCR_MAX_CLIENTS leaves the realm's value alone.
+DCR_MAX_CLIENTS="${KEYCLOAK_DCR_MAX_CLIENTS:-}"
+DCR_POLICY_STRICT="${KEYCLOAK_DCR_POLICY_STRICT:-false}"
+DCR_POLICY_FAILURES=0
+dcr_policy_failed() {
+  DCR_POLICY_FAILURES=$((DCR_POLICY_FAILURES + 1))
+  echo "DCR-POLICY-FAILED: $1" >&2
+}
 ISSUER="${KEYCLOAK_ISSUER:?}"
 AUD_DAEMON="${KEYCLOAK_AUDIENCE_DAEMON:?}"
 AUD_API="${KEYCLOAK_AUDIENCE_API:?}"
@@ -150,83 +160,6 @@ if "${KCADM}" get clients -r "${REALM}" -q "clientId=${SPA_CLIENT_ID}" >/tmp/kca
   done
 else
   echo "WARN: could not read client ${SPA_CLIENT_ID} for the session-override check — skipping" >&2
-fi
-
-# ------------------------------------------------------------------
-# Anonymous DCR policies (best-effort; never abort the rest of provision)
-# ------------------------------------------------------------------
-if "${KCADM}" get components -r "${REALM}" \
-      -q type=org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy \
-      >/tmp/dcr-components.json 2>/tmp/kcadm-components.log; then
-  dcr_component_id() {
-    local provider="$1" subtype="$2"
-    local id="" pid="" st="" line val
-    while IFS= read -r line || [ -n "$line" ]; do
-      case "$line" in
-        *'"id"'*)
-          val="${line#*\"id\"}"; val="${val#*:}"; val="${val#*\"}"; id="${val%%\"*}"
-          ;;
-        *'"providerId"'*)
-          val="${line#*\"providerId\"}"; val="${val#*:}"; val="${val#*\"}"; pid="${val%%\"*}"
-          ;;
-        *'"subType"'*)
-          val="${line#*\"subType\"}"; val="${val#*:}"; val="${val#*\"}"; st="${val%%\"*}"
-          ;;
-        *'}'*)
-          if [ "$pid" = "$provider" ] && [ "$st" = "$subtype" ] && [ -n "$id" ]; then
-            printf '%s\n' "$id"
-            return 0
-          fi
-          id=""; pid=""; st=""
-          ;;
-      esac
-    done < /tmp/dcr-components.json
-    return 1
-  }
-
-  TH_ID="$(dcr_component_id trusted-hosts anonymous || true)"
-  if [ -n "${TH_ID}" ] && [ -n "${TRUSTED_HOSTS}" ]; then
-    TH_ARGS=()
-    for h in ${TRUSTED_HOSTS}; do
-      TH_ARGS+=(-s "config.trusted-hosts+=${h}")
-    done
-    if "${KCADM}" update "components/${TH_ID}" -r "${REALM}" \
-          -s 'config.trusted-hosts=[]' \
-          "${TH_ARGS[@]}" \
-          -s 'config.host-sending-registration-request-must-match=["false"]' \
-          -s 'config.client-uris-must-match=["true"]' \
-          >/tmp/kcadm-th.log 2>&1; then
-      echo "PUT trusted-hosts -> ok (${TH_ID})"
-    else
-      echo "WARN: trusted-hosts update failed" >&2
-      cat /tmp/kcadm-th.log >&2 || true
-    fi
-  else
-    echo "WARN: skipping trusted-hosts (id='${TH_ID}' hosts='${TRUSTED_HOSTS}')"
-  fi
-
-  SC_ID="$(dcr_component_id allowed-client-templates anonymous || true)"
-  if [ -n "${SC_ID}" ] && [ -n "${ALLOWED_DCR_SCOPES}" ]; then
-    SC_ARGS=()
-    for s in ${ALLOWED_DCR_SCOPES}; do
-      SC_ARGS+=(-s "config.allowed-client-scopes+=${s}")
-    done
-    if "${KCADM}" update "components/${SC_ID}" -r "${REALM}" \
-          -s 'config.allowed-client-scopes=[]' \
-          "${SC_ARGS[@]}" \
-          -s 'config.allow-default-scopes=["true"]' \
-          >/tmp/kcadm-sc.log 2>&1; then
-      echo "PUT allowed-client-scopes -> ok (${SC_ID})"
-    else
-      echo "WARN: allowed-client-scopes update failed" >&2
-      cat /tmp/kcadm-sc.log >&2 || true
-    fi
-  else
-    echo "WARN: skipping allowed-client-scopes (id='${SC_ID}')"
-  fi
-else
-  echo "WARN: could not list DCR policy components — skipping DCR PUT" >&2
-  cat /tmp/kcadm-components.log >&2 || true
 fi
 
 # ------------------------------------------------------------------
@@ -414,6 +347,114 @@ ensure_mcp_write_scope() {
 echo "==> ensuring MCP write client scopes (hitl:write)"
 ensure_mcp_write_scope hitl:write \
   "Mutate human-in-the-loop questions over MCP: answer/route/dismiss/decline (collectors ADR-0057). User-bounded; the MCP server still enforces org membership and the per-tool scope check."
+
+# ------------------------------------------------------------------
+# Anonymous DCR policies (best-effort; never abort the rest of provision)
+# ------------------------------------------------------------------
+# Runs AFTER the client-scope sections above it on purpose: Keycloak rejects the WHOLE
+# allowed-client-scopes update (400 "Client scopes not allowed") if any scope it names is missing,
+# and profile/email/hitl:write are only created by this script. Written first, a fresh install's
+# policy stayed at Keycloak's default and DCR naming the write scopes got 403 until the next run.
+# scripts/assert-dcr-policy-after-scopes.sh pins the order.
+if "${KCADM}" get components -r "${REALM}" \
+      -q type=org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy \
+      >/tmp/dcr-components.json 2>/tmp/kcadm-components.log; then
+  dcr_component_id() {
+    local provider="$1" subtype="$2"
+    local id="" pid="" st="" line val
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        *'"id"'*)
+          val="${line#*\"id\"}"; val="${val#*:}"; val="${val#*\"}"; id="${val%%\"*}"
+          ;;
+        *'"providerId"'*)
+          val="${line#*\"providerId\"}"; val="${val#*:}"; val="${val#*\"}"; pid="${val%%\"*}"
+          ;;
+        *'"subType"'*)
+          val="${line#*\"subType\"}"; val="${val#*:}"; val="${val#*\"}"; st="${val%%\"*}"
+          ;;
+        *'}'*)
+          if [ "$pid" = "$provider" ] && [ "$st" = "$subtype" ] && [ -n "$id" ]; then
+            printf '%s\n' "$id"
+            return 0
+          fi
+          id=""; pid=""; st=""
+          ;;
+      esac
+    done < /tmp/dcr-components.json
+    return 1
+  }
+
+  TH_ID="$(dcr_component_id trusted-hosts anonymous || true)"
+  if [ -n "${TH_ID}" ] && [ -n "${TRUSTED_HOSTS}" ]; then
+    TH_ARGS=()
+    for h in ${TRUSTED_HOSTS}; do
+      TH_ARGS+=(-s "config.trusted-hosts+=${h}")
+    done
+    if "${KCADM}" update "components/${TH_ID}" -r "${REALM}" \
+          -s 'config.trusted-hosts=[]' \
+          "${TH_ARGS[@]}" \
+          -s 'config.host-sending-registration-request-must-match=["false"]' \
+          -s 'config.client-uris-must-match=["true"]' \
+          >/tmp/kcadm-th.log 2>&1; then
+      echo "PUT trusted-hosts -> ok (${TH_ID})"
+    else
+      echo "WARN: trusted-hosts update failed" >&2
+      cat /tmp/kcadm-th.log >&2 || true
+    fi
+  else
+    echo "WARN: skipping trusted-hosts (id='${TH_ID}' hosts='${TRUSTED_HOSTS}')"
+  fi
+
+  SC_ID="$(dcr_component_id allowed-client-templates anonymous || true)"
+  if [ -n "${SC_ID}" ] && [ -n "${ALLOWED_DCR_SCOPES}" ]; then
+    SC_ARGS=()
+    for s in ${ALLOWED_DCR_SCOPES}; do
+      SC_ARGS+=(-s "config.allowed-client-scopes+=${s}")
+    done
+    if "${KCADM}" update "components/${SC_ID}" -r "${REALM}" \
+          -s 'config.allowed-client-scopes=[]' \
+          "${SC_ARGS[@]}" \
+          -s 'config.allow-default-scopes=["true"]' \
+          >/tmp/kcadm-sc.log 2>&1; then
+      echo "PUT allowed-client-scopes -> ok (${SC_ID})"
+    else
+      echo "WARN: allowed-client-scopes update failed" >&2
+      cat /tmp/kcadm-sc.log >&2 || true
+      dcr_policy_failed "allowed-client-scopes update"
+    fi
+  else
+    echo "WARN: skipping allowed-client-scopes (id='${SC_ID}')"
+  fi
+
+  if [ -n "${DCR_MAX_CLIENTS}" ]; then
+    case "${DCR_MAX_CLIENTS}" in
+      0|*[!0-9]*)
+        dcr_policy_failed "KEYCLOAK_DCR_MAX_CLIENTS='${DCR_MAX_CLIENTS}' is not a positive integer — max-clients left as is"
+        ;;
+      *)
+        MC_ID="$(dcr_component_id max-clients anonymous || true)"
+        if [ -n "${MC_ID}" ]; then
+          if "${KCADM}" update "components/${MC_ID}" -r "${REALM}" \
+                -s "config.max-clients=[\"${DCR_MAX_CLIENTS}\"]" \
+                >/tmp/kcadm-mc.log 2>&1; then
+            echo "PUT max-clients=${DCR_MAX_CLIENTS} -> ok (${MC_ID})"
+          else
+            echo "WARN: max-clients update failed" >&2
+            cat /tmp/kcadm-mc.log >&2 || true
+            dcr_policy_failed "max-clients update"
+          fi
+        else
+          echo "WARN: no anonymous max-clients policy component to manage — skipping"
+        fi
+        ;;
+    esac
+  fi
+else
+  echo "WARN: could not list DCR policy components — skipping DCR PUT" >&2
+  cat /tmp/kcadm-components.log >&2 || true
+  dcr_policy_failed "could not list ClientRegistrationPolicy components"
+fi
 
 # ------------------------------------------------------------------
 # Realm defaultDefaultClientScopes: basic + res:mcp + graph:read
@@ -1641,3 +1682,14 @@ if "${KCADM}" get "authentication/required-actions/UPDATE_EMAIL" -r "${REALM}" \
 fi
 
 echo "==> provision scaffold complete (realm ready; DCR/audiences/Owner/admin-api/password-verify best-effort via kcadm)"
+
+# Last, so a bad anonymous-DCR policy cannot skip any other provisioning step.
+if [ "${DCR_POLICY_FAILURES}" -gt 0 ]; then
+  echo "==> DCR-POLICY-SUMMARY: ${DCR_POLICY_FAILURES} anonymous-DCR policy write(s) FAILED — see the DCR-POLICY-FAILED lines above. Anonymous DCR may be refusing MCP clients (403)." >&2
+  if [ "${DCR_POLICY_STRICT}" = "true" ]; then
+    echo "==> keycloak.provision.dcrPolicyStrict=true — failing the provision job" >&2
+    exit 1
+  fi
+else
+  echo "==> DCR-POLICY-SUMMARY: ok"
+fi
