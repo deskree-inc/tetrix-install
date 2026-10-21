@@ -63,6 +63,10 @@ jobs:
           if [ -z "$VERSION" ]; then
             echo "::error::version is required"; exit 1
           fi
+          # Strict, before anything is checked out from it (security review, tetrix-collectors#1380).
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version '$VERSION' is not MAJOR.MINOR.PATCH"; exit 1
+          fi
           {
             echo "version=${VERSION}"
             echo "tag=v${VERSION}"
@@ -71,7 +75,18 @@ jobs:
       - name: Checkout the release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.target.outputs.tag }}
+          ref: refs/tags/${{ steps.target.outputs.tag }}
+          fetch-depth: 0
+
+      - name: The release tag is on main
+        # The scripts below run from the tag, on the publish runner. Only a commit main already
+        # contains may run there, whichever event or dispatch input named it (tetrix-collectors#1380).
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$(git rev-parse --short HEAD) (the tag) is not on main; refusing to pack it"; exit 1
+          fi
 
       - name: Pack the compose bundle
         env:
