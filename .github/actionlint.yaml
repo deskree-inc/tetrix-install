@@ -1,0 +1,4 @@
+# actionlint: custom labels of the org self-hosted runners this repo targets (tetrix-collectors#1380).
+self-hosted-runner:
+  labels:
+    - do-publish

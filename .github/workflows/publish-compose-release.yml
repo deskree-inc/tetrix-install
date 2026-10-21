@@ -41,7 +41,11 @@ permissions:
 jobs:
   pack-and-upload:
     name: Pack compose bundle
-    runs-on: ubuntu-latest
+    # do-publish: the publish-only runner (do-pub-1, rebuilt clean) in the org runner group
+    # `publish`, which only the release workflows on main / v* tags may use; off GitHub-hosted,
+    # whose billing refusals blocked releases (deskree-inc/tetrix-collectors#1380). Any other ref
+    # (a branch dispatch) runs on GitHub-hosted, so branch code never reaches the publish runner.
+    runs-on: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && fromJSON('["self-hosted","do-publish"]') || 'ubuntu-latest' }}
     steps:
       - name: Resolve version
         id: target
