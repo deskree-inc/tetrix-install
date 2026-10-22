@@ -38,6 +38,25 @@ DCR_ACCESS_TOKEN_LIFESPAN="${KEYCLOAK_DCR_ACCESS_TOKEN_LIFESPAN:-3600}"
 # client qualifies, so the exception cannot widen by omission. Cursor, plus (ADR-0027
 # Amendment 1) loopback native apps like Claude Code — see tetrix-architecture#151.
 DCR_ATL_REDIRECT_PREFIXES="${KEYCLOAK_DCR_ATL_REDIRECT_PREFIXES:-cursor:// https://www.cursor.com/ http://localhost: http://127.0.0.1:}"
+# Anonymous "Max Clients Limit" policy (Keycloak default 200). Keycloak compares it with the
+# count of EVERY client in the realm — built-ins and service clients included — so a realm
+# full of idle DCR clients refuses all registration with 403 "Max Clients Limit", whatever
+# scope the request asks for, and that policy runs before the scope policy so it masks
+# every other DCR error (dogfood hit exactly 200/200 on 2026-10-10). Empty = leave the
+# realm's value alone. The chart passes keycloak.provision.dcrMaxClients (default 500).
+DCR_MAX_CLIENTS="${KEYCLOAK_DCR_MAX_CLIENTS:-}"
+# A failed anonymous-DCR policy PUT used to be one WARN line in a hook whose log is
+# garbage-collected with the pod, so a realm could sit on a stale policy for days.
+# The failures are now counted and summarised; with STRICT=true the job exits non-zero
+# AFTER every other provisioning step has run, so a bad policy fails the release visibly
+# without skipping the rest of the provisioning.
+DCR_POLICY_STRICT="${KEYCLOAK_DCR_POLICY_STRICT:-false}"
+DCR_POLICY_FAILURES=0
+# Optional Oby (deskree-inc/oby) public PKCE client. Off unless the chart asks for it.
+OBY_CLIENT_ENABLED="${KEYCLOAK_OBY_CLIENT_ENABLED:-false}"
+OBY_CLIENT_ID="${KEYCLOAK_OBY_CLIENT_ID:-oby-desktop}"
+OBY_REDIRECT_URIS="${KEYCLOAK_OBY_REDIRECT_URIS:-http://127.0.0.1/*}"
+OBY_ACCESS_TOKEN_LIFESPAN="${KEYCLOAK_OBY_ACCESS_TOKEN_LIFESPAN:-3600}"
 ISSUER="${KEYCLOAK_ISSUER:?}"
 AUD_DAEMON="${KEYCLOAK_AUDIENCE_DAEMON:?}"
 AUD_API="${KEYCLOAK_AUDIENCE_API:?}"
@@ -113,6 +132,25 @@ obtain_token() {
 words_to_json_array() {
   # stdin words -> JSON string array
   jq -R -s 'split("\n") | map(select(length>0)) | map(split(" ")[]) | map(select(length>0))'
+}
+
+# Record a failed anonymous-DCR policy write. Loud on purpose: the line is greppable
+# (`DCR-POLICY-FAILED`), repeated in the end-of-run summary, and fails the job when
+# KEYCLOAK_DCR_POLICY_STRICT=true. Never `exit` here — the rest of provisioning still runs.
+dcr_policy_failed() {
+  DCR_POLICY_FAILURES=$((DCR_POLICY_FAILURES + 1))
+  echo "DCR-POLICY-FAILED: $1" >&2
+}
+
+# PUT a ClientRegistrationPolicy component; echo-free, returns 0 only on 200/204.
+put_dcr_component() {
+  _pc_id="$1"
+  _pc_file="$2"
+  if http PUT "components/${_pc_id}" --data-binary @"${_pc_file}" \
+    && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
+    return 0
+  fi
+  return 1
 }
 
 # ==================================================================
@@ -610,55 +648,6 @@ else
 fi
 
 # ------------------------------------------------------------------
-# Anonymous DCR policies (best-effort)
-# ------------------------------------------------------------------
-if http GET "components?type=org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy" \
-  && [ "${HTTP_CODE}" = "200" ]; then
-  cp /tmp/kc-body /tmp/dcr-components.json
-
-  TH_ID="$(jq -r '.[] | select(.providerId=="trusted-hosts" and .subType=="anonymous") | .id' /tmp/dcr-components.json | head -n1)"
-  if [ -n "${TH_ID}" ] && [ "${TH_ID}" != "null" ] && [ -n "${TRUSTED_HOSTS}" ]; then
-    TH_JSON="$(printf '%s\n' "${TRUSTED_HOSTS}" | words_to_json_array)"
-    jq --arg id "${TH_ID}" --argjson hosts "${TH_JSON}" \
-      '.[] | select(.id==$id)
-       | .config["trusted-hosts"]=$hosts
-       | .config["host-sending-registration-request-must-match"]=["false"]
-       | .config["client-uris-must-match"]=["true"]' \
-      /tmp/dcr-components.json >/tmp/kc-th.json
-    if http PUT "components/${TH_ID}" --data-binary @/tmp/kc-th.json \
-      && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
-      echo "PUT trusted-hosts -> ok (${TH_ID})"
-    else
-      echo "WARN: trusted-hosts update failed http=${HTTP_CODE}" >&2
-      cat /tmp/kc-body >&2 || true
-    fi
-  else
-    echo "WARN: skipping trusted-hosts (id='${TH_ID}' hosts='${TRUSTED_HOSTS}')"
-  fi
-
-  SC_ID="$(jq -r '.[] | select(.providerId=="allowed-client-templates" and .subType=="anonymous") | .id' /tmp/dcr-components.json | head -n1)"
-  if [ -n "${SC_ID}" ] && [ "${SC_ID}" != "null" ] && [ -n "${ALLOWED_DCR_SCOPES}" ]; then
-    SC_JSON="$(printf '%s\n' "${ALLOWED_DCR_SCOPES}" | words_to_json_array)"
-    jq --arg id "${SC_ID}" --argjson scopes "${SC_JSON}" \
-      '.[] | select(.id==$id)
-       | .config["allowed-client-scopes"]=$scopes
-       | .config["allow-default-scopes"]=["true"]' \
-      /tmp/dcr-components.json >/tmp/kc-sc.json
-    if http PUT "components/${SC_ID}" --data-binary @/tmp/kc-sc.json \
-      && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
-      echo "PUT allowed-client-scopes -> ok (${SC_ID})"
-    else
-      echo "WARN: allowed-client-scopes update failed http=${HTTP_CODE}" >&2
-      cat /tmp/kc-body >&2 || true
-    fi
-  else
-    echo "WARN: skipping allowed-client-scopes (id='${SC_ID}')"
-  fi
-else
-  echo "WARN: could not list DCR policy components — skipping DCR PUT (http=${HTTP_CODE:-?})" >&2
-fi
-
-# ------------------------------------------------------------------
 # Client scopes (one list; refresh after creates)
 # ------------------------------------------------------------------
 SCOPE_JSON="/tmp/kc-client-scopes.json"
@@ -804,6 +793,95 @@ ensure_mcp_write_scope() {
 echo "==> ensuring MCP write client scopes (hitl:write)"
 ensure_mcp_write_scope hitl:write \
   "Mutate human-in-the-loop questions over MCP: answer/route/dismiss/decline (collectors ADR-0057). User-bounded; the MCP server still enforces org membership and the per-tool scope check."
+
+# ------------------------------------------------------------------
+# Anonymous DCR policies (best-effort)
+# ------------------------------------------------------------------
+# Runs AFTER the client-scope sections above it on purpose: Keycloak rejects the WHOLE
+# allowed-client-scopes update (400 "Client scopes not allowed") if any scope it names is missing,
+# and profile/email/hitl:write are only created by this script. Written first, a fresh install's
+# policy stayed at Keycloak's default and DCR naming the write scopes got 403 until the next run.
+# scripts/assert-dcr-policy-after-scopes.sh pins the order.
+ensure_anonymous_dcr_policies() {
+if http GET "components?type=org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy" \
+  && [ "${HTTP_CODE}" = "200" ]; then
+  cp /tmp/kc-body /tmp/dcr-components.json
+
+  TH_ID="$(jq -r '.[] | select(.providerId=="trusted-hosts" and .subType=="anonymous") | .id' /tmp/dcr-components.json | head -n1)"
+  if [ -n "${TH_ID}" ] && [ "${TH_ID}" != "null" ] && [ -n "${TRUSTED_HOSTS}" ]; then
+    TH_JSON="$(printf '%s\n' "${TRUSTED_HOSTS}" | words_to_json_array)"
+    jq --arg id "${TH_ID}" --argjson hosts "${TH_JSON}" \
+      '.[] | select(.id==$id)
+       | .config["trusted-hosts"]=$hosts
+       | .config["host-sending-registration-request-must-match"]=["false"]
+       | .config["client-uris-must-match"]=["true"]' \
+      /tmp/dcr-components.json >/tmp/kc-th.json
+    if http PUT "components/${TH_ID}" --data-binary @/tmp/kc-th.json \
+      && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
+      echo "PUT trusted-hosts -> ok (${TH_ID})"
+    else
+      echo "WARN: trusted-hosts update failed http=${HTTP_CODE}" >&2
+      cat /tmp/kc-body >&2 || true
+      dcr_policy_failed "trusted-hosts PUT http=${HTTP_CODE}"
+    fi
+  else
+    echo "WARN: skipping trusted-hosts (id='${TH_ID}' hosts='${TRUSTED_HOSTS}')"
+  fi
+
+  SC_ID="$(jq -r '.[] | select(.providerId=="allowed-client-templates" and .subType=="anonymous") | .id' /tmp/dcr-components.json | head -n1)"
+  if [ -n "${SC_ID}" ] && [ "${SC_ID}" != "null" ] && [ -n "${ALLOWED_DCR_SCOPES}" ]; then
+    SC_JSON="$(printf '%s\n' "${ALLOWED_DCR_SCOPES}" | words_to_json_array)"
+    jq --arg id "${SC_ID}" --argjson scopes "${SC_JSON}" \
+      '.[] | select(.id==$id)
+       | .config["allowed-client-scopes"]=$scopes
+       | .config["allow-default-scopes"]=["true"]' \
+      /tmp/dcr-components.json >/tmp/kc-sc.json
+    if http PUT "components/${SC_ID}" --data-binary @/tmp/kc-sc.json \
+      && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
+      echo "PUT allowed-client-scopes -> ok (${SC_ID})"
+    else
+      echo "WARN: allowed-client-scopes update failed http=${HTTP_CODE}" >&2
+      cat /tmp/kc-body >&2 || true
+      dcr_policy_failed "allowed-client-scopes PUT http=${HTTP_CODE}"
+    fi
+  else
+    echo "WARN: skipping allowed-client-scopes (id='${SC_ID}')"
+  fi
+
+  # Max Clients Limit — see DCR_MAX_CLIENTS above. Matched by providerId+subType, never by
+  # name; the rest of the component (id, name, parentId) is kept, only the one value moves.
+  if [ -n "${DCR_MAX_CLIENTS}" ]; then
+    case "${DCR_MAX_CLIENTS}" in
+      0|*[!0-9]*)
+        dcr_policy_failed "KEYCLOAK_DCR_MAX_CLIENTS='${DCR_MAX_CLIENTS}' is not a positive integer — max-clients left as is"
+        ;;
+      *)
+        MC_ID="$(jq -r '.[] | select(.providerId=="max-clients" and .subType=="anonymous") | .id' /tmp/dcr-components.json | head -n1)"
+        if [ -n "${MC_ID}" ] && [ "${MC_ID}" != "null" ]; then
+          jq --arg id "${MC_ID}" --arg n "${DCR_MAX_CLIENTS}" \
+            '.[] | select(.id==$id) | .config["max-clients"]=[$n]' \
+            /tmp/dcr-components.json >/tmp/kc-mc.json
+          if put_dcr_component "${MC_ID}" /tmp/kc-mc.json; then
+            echo "PUT max-clients=${DCR_MAX_CLIENTS} -> ok (${MC_ID})"
+          else
+            echo "WARN: max-clients update failed http=${HTTP_CODE}" >&2
+            cat /tmp/kc-body >&2 || true
+            dcr_policy_failed "max-clients PUT http=${HTTP_CODE}"
+          fi
+        else
+          # Keycloak ships this policy on every realm; its absence means the realm was
+          # created without the default policy set, and then there is no cap to raise.
+          echo "WARN: no anonymous max-clients policy component to manage — skipping"
+        fi
+        ;;
+    esac
+  fi
+else
+  echo "WARN: could not list DCR policy components — skipping DCR PUT (http=${HTTP_CODE:-?})" >&2
+  dcr_policy_failed "could not list ClientRegistrationPolicy components http=${HTTP_CODE:-?}"
+fi
+}
+ensure_anonymous_dcr_policies
 
 # ------------------------------------------------------------------
 # tetrix-dcr-default-scopes ClientRegistrationPolicy components (#208)
@@ -997,7 +1075,10 @@ remove_client_default_scope() {
   http DELETE "clients/${_client_uuid}/default-client-scopes/${_sid}" || true
 }
 ensure_mcp_scopes_on_dcr_clients() {
-  if ! http GET "clients?max=500" || [ "${HTTP_CODE}" != "200" ]; then
+  # max=2000, not 500: with the anonymous cap at 500 DCR clients plus the built-ins, a
+  # realm at capacity has more than 500 clients and a 500-row page would silently skip the
+  # tail. The 2-minute repair loop (keycloak-dcr-scope-repair.sh) pages properly.
+  if ! http GET "clients?max=2000" || [ "${HTTP_CODE}" != "200" ]; then
     echo "WARN: could not list clients for DCR MCP scope repair http=${HTTP_CODE}" >&2
     return 0
   fi
@@ -1022,6 +1103,94 @@ ensure_mcp_scopes_on_dcr_clients() {
   done
 }
 ensure_mcp_scopes_on_dcr_clients
+
+# ------------------------------------------------------------------
+# Oby public client (optional — keycloak.provision.obyClient.enabled)
+# ------------------------------------------------------------------
+# Oby (deskree-inc/oby) is Deskree's Mac/iPhone app. It is a native OAuth client, not a DCR
+# one, so it needs a registered client of its own: public (no secret), authorization-code
+# with PKCE S256 required, loopback redirect (Keycloak ignores the port of a 127.0.0.1
+# redirect, RFC 8252 s7.3), direct access grants off. The MCP scopes are attached
+# EXPLICITLY — nothing here goes through the DCR policy that would otherwise attach them,
+# and the token's aud arrives via res:mcp / graph:read like every other MCP client's.
+# collector:admin is deliberately never listed: Oby is a user-bounded MCP client.
+# Idempotent and drift-correcting: an existing client is re-PUT to the desired shape,
+# attributes MERGED so an operator's extra attribute survives.
+# WARN-and-continue on any failure — this is an optional extra and must never fail the
+# hook that provisions the realm.
+ensure_oby_client() {
+  [ "${OBY_CLIENT_ENABLED}" = "true" ] || return 0
+  case "${OBY_ACCESS_TOKEN_LIFESPAN}" in
+    ""|0|*[!0-9]*) _oby_atl="3600" ;;
+    *) _oby_atl="${OBY_ACCESS_TOKEN_LIFESPAN}" ;;
+  esac
+  _oby_redirects="$(printf '%s\n' "${OBY_REDIRECT_URIS}" | words_to_json_array)"
+  jq -n --arg cid "${OBY_CLIENT_ID}" --arg atl "${_oby_atl}" --argjson redirects "${_oby_redirects}" '{
+    clientId: $cid,
+    name: "Oby Desktop",
+    description: "Deskree Oby Mac/iPhone app (deskree-inc/oby). Public PKCE client.",
+    protocol: "openid-connect",
+    enabled: true,
+    publicClient: true,
+    standardFlowEnabled: true,
+    directAccessGrantsEnabled: false,
+    implicitFlowEnabled: false,
+    serviceAccountsEnabled: false,
+    redirectUris: $redirects,
+    webOrigins: [],
+    fullScopeAllowed: false,
+    attributes: {
+      "pkce.code.challenge.method": "S256",
+      "revoke.refresh.token": "true",
+      "refresh.token.max.reuse": "0",
+      "access.token.lifespan": $atl
+    }
+  }' >/tmp/kc-oby-desired.json
+
+  if ! http GET "clients?clientId=${OBY_CLIENT_ID}" || [ "${HTTP_CODE}" != "200" ]; then
+    echo "WARN: could not look up client ${OBY_CLIENT_ID} http=${HTTP_CODE} — skipping" >&2
+    return 0
+  fi
+  _oby_uuid="$(jq -r '.[0].id // empty' /tmp/kc-body 2>/dev/null || echo "")"
+
+  if [ -z "${_oby_uuid}" ]; then
+    jq '. + {defaultClientScopes: ["basic","res:mcp","graph:read","sessions:write","hitl:write"], optionalClientScopes: ["offline_access"]}' \
+      /tmp/kc-oby-desired.json >/tmp/kc-oby-create.json
+    if http POST "clients" --data-binary @/tmp/kc-oby-create.json && [ "${HTTP_CODE}" = "201" ]; then
+      _oby_uuid="$(location_id /tmp/kc-hdrs)"
+      echo "CREATE client ${OBY_CLIENT_ID} id=${_oby_uuid}"
+    else
+      echo "WARN: could not create client ${OBY_CLIENT_ID} http=${HTTP_CODE}" >&2
+      cat /tmp/kc-body >&2 || true
+      return 0
+    fi
+  else
+    : >/tmp/kc-oby-update.json
+    if http GET "clients/${_oby_uuid}" && [ "${HTTP_CODE}" = "200" ]; then
+      cp /tmp/kc-body /tmp/kc-oby-current.json
+      jq -s '.[0] as $cur | .[1] as $want
+        | $cur + ($want | del(.attributes))
+        | .attributes = (($cur.attributes // {}) + $want.attributes)' \
+        /tmp/kc-oby-current.json /tmp/kc-oby-desired.json >/tmp/kc-oby-update.json 2>/dev/null || : >/tmp/kc-oby-update.json
+    fi
+    if [ -s /tmp/kc-oby-update.json ] \
+      && http PUT "clients/${_oby_uuid}" --data-binary @/tmp/kc-oby-update.json \
+      && { [ "${HTTP_CODE}" = "204" ] || [ "${HTTP_CODE}" = "200" ]; }; then
+      echo "UPDATE client ${OBY_CLIENT_ID} id=${_oby_uuid} (drift corrected)"
+    else
+      echo "WARN: could not update client ${OBY_CLIENT_ID} http=${HTTP_CODE}" >&2
+      cat /tmp/kc-body >&2 || true
+    fi
+    ensure_client_default_scope "${_oby_uuid}" basic
+    ensure_client_default_scope "${_oby_uuid}" res:mcp
+    ensure_client_default_scope "${_oby_uuid}" graph:read
+    ensure_client_default_scope "${_oby_uuid}" sessions:write
+    ensure_client_default_scope "${_oby_uuid}" hitl:write
+    ensure_client_optional_scope "${_oby_uuid}" offline_access
+  fi
+}
+echo "==> ensuring the Oby public client (enabled=${OBY_CLIENT_ENABLED})"
+ensure_oby_client
 
 # ------------------------------------------------------------------
 # Audience mappers
@@ -1836,3 +2005,18 @@ if [ "${PROVISION_START}" != "0" ] && [ "${PROVISION_END}" != "0" ]; then
 else
   echo "==> provision complete (fast/rest)"
 fi
+
+# Last, so a bad anonymous-DCR policy cannot skip any other provisioning step.
+dcr_policy_summary() {
+  if [ "${DCR_POLICY_FAILURES}" -gt 0 ]; then
+    echo "==> DCR-POLICY-SUMMARY: ${DCR_POLICY_FAILURES} anonymous-DCR policy write(s) FAILED — see the DCR-POLICY-FAILED lines above. Anonymous DCR may be refusing MCP clients (403)." >&2
+    if [ "${DCR_POLICY_STRICT}" = "true" ]; then
+      echo "==> keycloak.provision.dcrPolicyStrict=true — failing the provision job" >&2
+      return 1
+    fi
+  else
+    echo "==> DCR-POLICY-SUMMARY: ok"
+  fi
+  return 0
+}
+dcr_policy_summary || exit 1
