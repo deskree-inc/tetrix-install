@@ -4,14 +4,36 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.24**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.24)).
-This tree's `VERSION` is **1.1.25** (not released yet), matching Helm chart 1.1.25:
+Latest published release: **1.1.25**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.25)).
+This tree's `VERSION` is **1.1.27** (not released yet), matching Helm chart 1.1.27 (chart 1.1.26 was
+never published on its own; its change is in 1.1.27):
 daemon/remote `sha-624356d`, collectors `sha-60087ad`, front-end `sha-fb128fa`,
-gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-349d602`. 1.1.25 makes the graph snapshot of a large graph
-fit its size limit and say so when it cannot, and fixes the updater's Pod Security pre-update check.
-It moves the collectors, the admin-api trio and the front-end:
+gateway `sha-a8582b0`, iam `sha-04b1e55`, audit-logs `sha-2a150cc`, and
+admin-api / licensing / updater `sha-349d602`. Against 1.1.25 the only image that moves is **iam**:
+
+- **Keycloak `sha-04b1e55`** (tetrix-iam#64): Keycloak 26.7.3 → 26.8.1, with the 26.7.4–26.8.1 security
+  fixes and the upstream half of the DCR scope fix (the `tetrix-dcr-default-scopes` policy and the
+  repair loop stay). Before you upgrade a Compose install:
+  - **Snapshot the keycloak database.** The first start migrates it forward only. A 26.7.3 server on a
+    migrated database boots but every identity-provider query returns HTTP 500, so going back to
+    `sha-7f0c138` needs the snapshot restored.
+  - **Check outgoing mail** (System → Email → Send test email). 26.8.1 refuses to send when StartTLS is
+    on and the mail server does not offer it; 26.7.3 sent that mail in plaintext. If the test email
+    works, this does not affect you.
+  - The Keycloak service restarts on `docker compose up`, so logins are down for a short while.
+- **`chart-scripts/`** (the Keycloak provisioners and the DCR repair loop) follow Helm 1.1.26 and 1.1.27:
+  the anonymous DCR allowed-scopes policy is written after the scopes it names exist, so a fresh
+  install's first provisioning run no longer leaves Claude Code's registration shape at HTTP 403; a
+  failed policy write is reported as a counted line instead of a quiet warning; and the repair loop
+  reads every client, not one 500-row page. The new max-clients setting and the idle-client cleanup
+  are Helm values; this Compose bundle does not pass them through, so Keycloak keeps its own
+  max-clients limit and the cleanup stays off.
+- No migration and no new required env.
+
+From 1.1.25, which made the graph snapshot of a large graph fit its size limit and say so when it
+cannot, and fixed the updater's Pod Security pre-update check, and moved the collectors, the admin-api
+trio and the front-end:
 
 - **Collectors `sha-60087ad`** (tetrix-collectors#1345, #1336, #1338, #1337, #1349 and the rest
   of `61ad14a..60087ad`):
@@ -29,9 +51,6 @@ It moves the collectors, the admin-api trio and the front-end:
   behavior change for it.
 - **Migration `0043_graph_snapshot_refusals`** (collectors): one new empty table, no backfill.
   The admin-api build has no migration, and nothing adds a required env var.
-- **Keycloak stays on `sha-7f0c138`.** A newer image (tetrix-iam `sha-04b1e55`, Keycloak 26.8.1)
-  is published, and it is held on purpose: it needs its own chart change (a `Recreate` rollout
-  strategy, and an SMTP release note) before it ships.
 - **Front-end `sha-fb128fa`** (tetrix-front-end#342). The observability Resources view shows each
   pod's requests and limits, and the Postgres memory limit.
 
