@@ -4,38 +4,44 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.24**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.24)).
-This tree's `VERSION` is **1.1.25** (not released yet), matching Helm chart 1.1.25:
-daemon/remote `sha-624356d`, collectors `sha-60087ad`, front-end `sha-fb128fa`,
-gateway `sha-a8582b0`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
-admin-api / licensing / updater `sha-349d602`. 1.1.25 makes the graph snapshot of a large graph
-fit its size limit and say so when it cannot, and fixes the updater's Pod Security pre-update check.
-It moves the collectors, the admin-api trio and the front-end:
+Latest published release: **1.1.25**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.25)).
+This tree's `VERSION` is **1.1.27** (not released yet), matching Helm chart 1.1.27:
+daemon/remote `sha-89456c6`, collectors `sha-0c3bce5`, front-end `sha-fb128fa`,
+gateway `sha-6fd804d`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
+admin-api / licensing / updater `sha-349d602`. 1.1.27 unfreezes the graph snapshot on large
+graphs. It also includes the Keycloak provisioning fixes that were numbered 1.1.26 and never
+published on their own:
 
-- **Collectors `sha-60087ad`** (tetrix-collectors#1345, #1336, #1338, #1337, #1349 and the rest
-  of `61ad14a..60087ad`):
-  - the graph snapshot stops exporting `_search_text`, and a code node's `signature` and
-    `children`, so a large graph's snapshot stays under the size limit (#1345);
-  - a snapshot rebuild that is refused as too large is recorded, named in the MCP triage and
-    backed off instead of retried every sync (#1336);
-  - `detect_findings` reads only the kinds it declares (#1338);
-  - the saga's stop probe runs on its own session, so a dropped probe cannot lose a finished
-    step (#1337);
-  - a GitHub credential without Actions read no longer fails the whole sync (#1349).
-- **Admin-api / licensing / updater `sha-349d602`** (tetrix-admin-api#196). On Helm installs the
-  updater's admission check judges Pod Security from the dry-run warning the workload itself
-  produces. That is Helm-only. A Compose install takes the same build, with no
-  behavior change for it.
-- **Migration `0043_graph_snapshot_refusals`** (collectors): one new empty table, no backfill.
-  The admin-api build has no migration, and nothing adds a required env var.
-- **Keycloak stays on `sha-7f0c138`.** A newer image (tetrix-iam `sha-04b1e55`, Keycloak 26.8.1)
-  is published, and it is held on purpose: it needs its own chart change (a `Recreate` rollout
-  strategy, and an SMTP release note) before it ships.
-- **Front-end `sha-fb128fa`** (tetrix-front-end#342). The observability Resources view shows each
-  pod's requests and limits, and the Postgres memory limit.
+- **Collectors `sha-0c3bce5`** (the 1.1.26 collectors bundle, tetrix-collectors#1383, and the rest
+  of `60087ad..763739e`):
+  - the exported graph drops every edge whose endpoint is stale (#1368);
+  - a build too large for one snapshot row is published as streamed shard rows instead of being
+    refused, so a large graph's snapshot stops freezing (ADR-0111 9b-lite, #1346, #1360);
+  - Explore reads the slim projection, so it works on those large builds too (#1379);
+  - lifecycle bookkeeping, the GHE code index and writer batching fixes (#1365, #1364, #1363).
+- **Migrations `0044_graph_snapshot_shards` and `0045_graph_snapshot_shards_vacuum`**
+  (collectors): new tables and their autovacuum settings, no backfill. Nothing adds a required env
+  var: `SNAPSHOT_SHARD_ABOVE_BYTES`, `SNAPSHOT_BUILD_MODE` and `READ_MODEL_BLOB_WRITE` are optional.
+- **Daemon/remote `sha-89456c6` and gateway `sha-6fd804d`**: rebuilds of the same source (only CI
+  changed: tetrix-ee#223, gateway#52).
+- **Keycloak provisioning** (`chart-scripts/`, from Helm 1.1.26 and 1.1.27): the anonymous DCR
+  allowed-scopes policy is written after the scopes it names exist, so a fresh install's first
+  provisioning run no longer leaves MCP clients with HTTP 403. The anonymous client limit is
+  managed (default 500), and a failed policy write is reported as `DCR-POLICY-FAILED`. The repair
+  job can delete idle anonymous DCR clients (on by default: it stamps first, and deletes only after
+  30 days idle).
+- **Keycloak stays on `sha-7f0c138`** (26.7.3). The 26.8.1 image (tetrix-iam `sha-04b1e55`) is
+  held on purpose until its Helm rollout is safe to roll back.
+- Front-end, audit-logs and the admin-api trio are unchanged.
 
-From 1.1.24: the collectors migrate job applies `0043_graph_snapshot_refusals`; no new required env.
+From 1.1.25: the collectors migrate job applies `0044_graph_snapshot_shards` and
+`0045_graph_snapshot_shards_vacuum`; no new required env.
+
+Earlier, 1.1.25 moved the collectors to `sha-60087ad` (a large graph's snapshot stops exporting
+`_search_text` and a refused rebuild is recorded and backed off; tetrix-collectors#1345, #1336,
+#1338, #1337, #1349, with migration `0043_graph_snapshot_refusals`), the admin-api trio to
+`sha-349d602` (tetrix-admin-api#196) and the front-end to `sha-fb128fa` (tetrix-front-end#342).
 
 Earlier, 1.1.24 moved the admin-api trio to `sha-4658be2` (the updater dry-runs every object
 through the cluster's admission policies before an update or a Recover, a release whose rollback a
@@ -284,9 +290,10 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-60087ad` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-60087ad` adds `0043_graph_snapshot_refusals` (a new empty table, no
-backfill); `sha-61ad14a`, `sha-19e9c7b`, `sha-3319b28` and `sha-6e4d334` add no migration of their own.
+**Collectors `sha-0c3bce5` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-0c3bce5` adds `0044_graph_snapshot_shards` and
+`0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
+`sha-60087ad` added `0043_graph_snapshot_refusals` (a new empty table, no backfill); `sha-61ad14a`, `sha-19e9c7b`, `sha-3319b28` and `sha-6e4d334` add no migration of their own.
 From `sha-6e4d334` / `sha-1723847` that applies `0042_inbox_processed_at` and then `0043_graph_snapshot_refusals`.
 `0042_inbox_processed_at` is one plain index on `inbox.processed_at`, no backfill. From `sha-f3ac783` / `sha-8b8037f` that applies
 `0040_observability_failure_acks` and `0041_observability_indexes` (an additive table and
@@ -300,10 +307,10 @@ columns and indexes, no backfill). An install older than `sha-d8aa8ee` also appl
 `0030_redact_git_tokens` (it rewrites GitHub tokens already stored in the run ledger; the
 downgrade is a no-op, and any token it redacts was already readable and must be rotated)
 and `0031_findings` (additive tables). After that, `alembic_version` is
-`0043_graph_snapshot_refusals`. Restoring an older collectors pin and running
+`0045_graph_snapshot_shards_vacuum`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-60087ad` back, or restore the `control_plane` database. The only signal that 0030
+`sha-0c3bce5` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
