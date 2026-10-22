@@ -7,13 +7,13 @@ Deskree GitHub repository.
 Latest published release: **1.1.25**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.25)).
 This tree's `VERSION` is **1.1.27** (not released yet), matching Helm chart 1.1.27:
-daemon/remote `sha-89456c6`, collectors `sha-763739e`, front-end `sha-fb128fa`,
+daemon/remote `sha-89456c6`, collectors `sha-0c3bce5`, front-end `sha-fb128fa`,
 gateway `sha-6fd804d`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-349d602`. 1.1.27 unfreezes the graph snapshot on large
 graphs. It also includes the Keycloak provisioning fixes that were numbered 1.1.26 and never
 published on their own:
 
-- **Collectors `sha-763739e`** (the 1.1.26 collectors bundle, tetrix-collectors#1383, and the rest
+- **Collectors `sha-0c3bce5`** (the 1.1.26 collectors bundle, tetrix-collectors#1383, and the rest
   of `60087ad..763739e`):
   - the exported graph drops every edge whose endpoint is stale (#1368);
   - a build too large for one snapshot row is published as streamed shard rows instead of being
@@ -290,8 +290,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-763739e` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-763739e` adds `0044_graph_snapshot_shards` and
+**Collectors `sha-0c3bce5` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-0c3bce5` adds `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
 `sha-60087ad` added `0043_graph_snapshot_refusals` (a new empty table, no backfill); `sha-61ad14a`, `sha-19e9c7b`, `sha-3319b28` and `sha-6e4d334` add no migration of their own.
 From `sha-6e4d334` / `sha-1723847` that applies `0042_inbox_processed_at` and then `0043_graph_snapshot_refusals`.
@@ -310,7 +310,7 @@ and `0031_findings` (additive tables). After that, `alembic_version` is
 `0045_graph_snapshot_shards_vacuum`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-763739e` back, or restore the `control_plane` database. The only signal that 0030
+`sha-0c3bce5` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the

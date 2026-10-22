@@ -5,7 +5,7 @@
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
 # lock recorded, so it stays forbidden. Current pins match Helm 1.1.27 (the large-graph snapshot
-# fix: collectors sha-763739e is the 1.1.26 collectors bundle, tetrix-collectors#1383 on 60087ad, with
+# fix: collectors sha-0c3bce5 is the 1.1.26 collectors bundle, tetrix-collectors#1383 on 60087ad, with
 # migrations 0044_graph_snapshot_shards and 0045_graph_snapshot_shards_vacuum; daemon/remote sha-89456c6
 # and gateway sha-6fd804d are CI-only rebuilds of the same source (tetrix-ee#223, gateway#52); the
 # admin-api trio stays one build, sha-349d602; front-end sha-fb128fa, audit-logs sha-2a150cc and iam
@@ -13,7 +13,7 @@
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-89456c6
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-763739e
+#   collectors         sha-0c3bce5
 #   frontend           sha-fb128fa
 #   iam                sha-7f0c138
 #   admin-api          sha-349d602
@@ -69,7 +69,7 @@ required_env = (
     ("KEYCLOAK_IMAGE_TAG=sha-7f0c138", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-fb128fa", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-763739e", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-0c3bce5", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -84,7 +84,7 @@ required_compose = (
     (":-sha-7f0c138}", "iam"),
     (":-sha-fb128fa}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-763739e}", "collectors"),
+    (":-sha-0c3bce5}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-6fd804d}", "gateway"),
 )
