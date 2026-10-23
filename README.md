@@ -4,10 +4,14 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.25**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.25)).
-This tree's `VERSION` is **1.1.27** (not released yet), matching Helm chart 1.1.27:
-daemon/remote `sha-89456c6`, collectors `sha-0c3bce5`, front-end `sha-fb128fa`,
+Latest published release: **1.1.27**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.27)).
+This tree's `VERSION` is **1.1.28** (not released yet), matching Helm chart 1.1.28. 1.1.28 moves
+only the front-end, to `sha-8161019`: tetrix-front-end#346 (customer Platform update card for
+owners/admins, support-only Observability, Settings copy, live support tickets, the overview
+coverage map for every catalog connector) and #347 (support-ticket live updates). It is SPA only,
+with no new env and no migration. 1.1.27's pins, unchanged except the front-end:
+daemon/remote `sha-89456c6`, collectors `sha-0c3bce5`, front-end `sha-8161019`,
 gateway `sha-6fd804d`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-349d602`. 1.1.27 unfreezes the graph snapshot on large
 graphs. It also includes the Keycloak provisioning fixes that were numbered 1.1.26 and never
