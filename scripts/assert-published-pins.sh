@@ -4,19 +4,19 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.28 (the large-graph snapshot
-# fix: collectors sha-0c3bce5 is the 1.1.26 collectors bundle, tetrix-collectors#1383 on 60087ad, with
-# migrations 0044_graph_snapshot_shards and 0045_graph_snapshot_shards_vacuum; daemon/remote sha-89456c6
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.29 (collectors sha-ba4a0b0 is
+# tetrix-collectors main ba4a0b0, publish-image run 40555052203, with migration 0046_whole_read_refusals;
+# sha-3f7baca and sha-d83d976 were cancelled before they pushed, so they are forbidden; daemon/remote sha-89456c6
 # and gateway sha-6fd804d are CI-only rebuilds of the same source (tetrix-ee#223, gateway#52); the
 # admin-api trio stays one build, sha-349d602; front-end sha-8161019 (1.1.28: front-end#346/#347, first published
 # by front-end#350), audit-logs sha-2a150cc and iam
-# sha-7f0c138 stay (iam HELD: sha-04b1e55, Keycloak 26.8.1, waits on chart#480's review blocker);
+# iam moves to sha-04b1e55 (Keycloak 26.8.1, tetrix-iam#64, folded into Helm 1.1.29 with chart#480);
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-89456c6
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-0c3bce5
+#   collectors         sha-ba4a0b0
 #   frontend           sha-8161019
-#   iam                sha-7f0c138
+#   iam                sha-04b1e55
 #   admin-api          sha-349d602
 #   audit-logs         sha-2a150cc
 #   gateway            sha-6fd804d
@@ -55,7 +55,7 @@ errors = []
 # instead of the newest published build lands on them.
 # sha-423c2c9 (front-end main 2026-10-21, its publish failed) and sha-baaaa5a (collectors #1368's
 # merge, never published on its own) are the same trap for this repin.
-UNPUBLISHED = ("sha-48d76f3", "sha-7dd9f22", "sha-09a15db", "sha-d35e356", "sha-423c2c9", "sha-baaaa5a")
+UNPUBLISHED = ("sha-48d76f3", "sha-7dd9f22", "sha-09a15db", "sha-d35e356", "sha-423c2c9", "sha-baaaa5a", "sha-3f7baca", "sha-d83d976")
 for name, text, forbidden in (
     (".env.example", uncomment(env), UNPUBLISHED),
     ("docker-compose.yml", compose, UNPUBLISHED),
@@ -67,10 +67,10 @@ for name, text, forbidden in (
 
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-89456c6", "TETRIX_IMAGE_TAG"),
-    ("KEYCLOAK_IMAGE_TAG=sha-7f0c138", "KEYCLOAK_IMAGE_TAG"),
+    ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-8161019", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-0c3bce5", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-ba4a0b0", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -78,14 +78,14 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.28)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.29)")
 
 required_compose = (
     (":-sha-89456c6}", "daemon/remote"),
-    (":-sha-7f0c138}", "iam"),
+    (":-sha-04b1e55}", "iam"),
     (":-sha-8161019}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-0c3bce5}", "collectors"),
+    (":-sha-ba4a0b0}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-6fd804d}", "gateway"),
 )
@@ -129,6 +129,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.28 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.29 published tags and does not pass --quiet"
 fi
 exit "$fail"
