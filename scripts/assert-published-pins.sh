@@ -10,13 +10,13 @@
 # and gateway sha-6fd804d are CI-only rebuilds of the same source (tetrix-ee#223, gateway#52); the
 # admin-api trio stays one build, sha-349d602; front-end sha-8161019 (1.1.28: front-end#346/#347, first published
 # by front-end#350), audit-logs sha-2a150cc and iam
-# sha-7f0c138 stay (iam HELD: sha-04b1e55, Keycloak 26.8.1, waits on chart#480's review blocker);
+# iam moves to sha-04b1e55 (Keycloak 26.8.1, tetrix-iam#64, folded into Helm 1.1.29 with chart#480);
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-89456c6
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
 #   collectors         sha-ba4a0b0
 #   frontend           sha-8161019
-#   iam                sha-7f0c138
+#   iam                sha-04b1e55
 #   admin-api          sha-349d602
 #   audit-logs         sha-2a150cc
 #   gateway            sha-6fd804d
@@ -67,7 +67,7 @@ for name, text, forbidden in (
 
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-89456c6", "TETRIX_IMAGE_TAG"),
-    ("KEYCLOAK_IMAGE_TAG=sha-7f0c138", "KEYCLOAK_IMAGE_TAG"),
+    ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-8161019", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
     ("COLLECTORS_IMAGE_TAG=sha-ba4a0b0", "COLLECTORS_IMAGE_TAG"),
@@ -82,7 +82,7 @@ for needle, label in required_env:
 
 required_compose = (
     (":-sha-89456c6}", "daemon/remote"),
-    (":-sha-7f0c138}", "iam"),
+    (":-sha-04b1e55}", "iam"),
     (":-sha-8161019}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
     (":-sha-ba4a0b0}", "collectors"),
