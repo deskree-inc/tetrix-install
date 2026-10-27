@@ -4,13 +4,32 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.27**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.27)).
-This tree's `VERSION` is **1.1.28** (not released yet), matching Helm chart 1.1.28. 1.1.28 moves
-only the front-end, to `sha-8161019`: tetrix-front-end#346 (customer Platform update card for
+Latest published release: **1.1.28**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.28)).
+This tree's `VERSION` is **1.1.29** (not released yet), matching Helm chart 1.1.29. 1.1.29 moves
+only the collectors, to `sha-ba4a0b0` (tetrix-collectors main `ba4a0b0`):
+
+- **Reliability:** the saga's stop check is bounded and fails open; persist re-sends a write the
+  daemon marked retryable instead of failing the run; a drained run records why it was drained
+  (pod, build, signal) and the next worker names the cause.
+- **Visibility:** `connection_health` flags a source whose lifecycle read keeps timing out,
+  `graph_summary` shows each running source's current step and progress, and the graph
+  diagnostics report the snapshot's shard store and its refused whole reads.
+- **Correctness:** retired entities no longer block or create edges in three resolvers;
+  PagerDuty, incident.io, Vercel, Supabase, vSphere and GitLab no longer retire or erase data on a
+  partial or failed read.
+- **Security:** `save_session` refuses credential-shaped text in anything it shares with the org.
+- **Migration `0046_whole_read_refusals`** (collectors): two nullable columns, no backfill. No new
+  required env.
+
+Every other pin is unchanged: daemon/remote `sha-89456c6`, front-end `sha-8161019`, gateway
+`sha-6fd804d`, iam `sha-7f0c138` (Keycloak 26.8.1 still held), audit-logs `sha-2a150cc`, and
+admin-api / licensing / updater `sha-349d602`.
+
+Earlier, 1.1.28 moved only the front-end, to `sha-8161019`: tetrix-front-end#346 (customer Platform update card for
 owners/admins, support-only Observability, Settings copy, live support tickets, the overview
 coverage map for every catalog connector) and #347 (support-ticket live updates). It is SPA only,
-with no new env and no migration. 1.1.27's pins, unchanged except the front-end:
+with no new env and no migration. 1.1.27's pins, unchanged then except the front-end:
 daemon/remote `sha-89456c6`, collectors `sha-0c3bce5`, front-end `sha-8161019`,
 gateway `sha-6fd804d`, iam `sha-7f0c138`, audit-logs `sha-2a150cc`, and
 admin-api / licensing / updater `sha-349d602`. 1.1.27 unfreezes the graph snapshot on large
@@ -294,8 +313,9 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-0c3bce5` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-0c3bce5` adds `0044_graph_snapshot_shards` and
+**Collectors `sha-ba4a0b0` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-ba4a0b0` adds `0046_whole_read_refusals` (two nullable columns on
+`graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
 `sha-60087ad` added `0043_graph_snapshot_refusals` (a new empty table, no backfill); `sha-61ad14a`, `sha-19e9c7b`, `sha-3319b28` and `sha-6e4d334` add no migration of their own.
 From `sha-6e4d334` / `sha-1723847` that applies `0042_inbox_processed_at` and then `0043_graph_snapshot_refusals`.
@@ -311,10 +331,10 @@ columns and indexes, no backfill). An install older than `sha-d8aa8ee` also appl
 `0030_redact_git_tokens` (it rewrites GitHub tokens already stored in the run ledger; the
 downgrade is a no-op, and any token it redacts was already readable and must be rotated)
 and `0031_findings` (additive tables). After that, `alembic_version` is
-`0045_graph_snapshot_shards_vacuum`. Restoring an older collectors pin and running
+`0046_whole_read_refusals`. Restoring an older collectors pin and running
 `docker compose up -d` does not bring collectors back: that image does not know the new
 revision, the migrate command exits, and every collectors service waits on it. Put
-`sha-0c3bce5` back, or restore the `control_plane` database. The only signal that 0030
+`sha-ba4a0b0` back, or restore the `control_plane` database. The only signal that 0030
 scrubbed anything is a count line on that one-shot's stdout.
 
 **Identity salt (`TETRIX_IDENTITY_SALT`).** Every collectors service reads the
