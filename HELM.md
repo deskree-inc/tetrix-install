@@ -42,7 +42,7 @@ HTTPS is required in production — the web application uses browser APIs that
 only work in a secure context.
 
 **Do not pass `--wait` or `--atomic`** on a default install. Schema, Keycloak,
-and Vault hooks run after the main workloads; Helm `--wait` blocks on
+and OpenBao hooks run after the main workloads; Helm `--wait` blocks on
 collectors becoming Ready before those hooks finish. Use
 `--timeout 25m --wait=false` and watch Jobs with `kubectl -n tetrix get jobs`.
 
