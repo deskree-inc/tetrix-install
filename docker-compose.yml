@@ -1088,6 +1088,9 @@ services:
       EXPLORE_LLM_PROVIDER: ${EXPLORE_LLM_PROVIDER:-anthropic}
       EXPLORE_LLM_MODEL: ${EXPLORE_LLM_MODEL:-claude-haiku-4-5-20251001}
       EXPLORE_RATE_LIMIT_PER_HOUR: ${EXPLORE_RATE_LIMIT_PER_HOUR:-60}
+      # collectors#790: the provider's endpoint override (an OpenAI-compatible gateway
+      # with EXPLORE_LLM_PROVIDER=openai). Empty = the provider's default.
+      EXPLORE_LLM_BASE_URL: ${EXPLORE_LLM_BASE_URL:-}
       # chart#393 (collectors#761): the services the API's /health/services aggregate probes,
       # one row each in the MCP `platform_versions` answer. Twin of values
       # collectors.api.serviceReadyz; override the whole map with COLLECTORS_API_SERVICE_READYZ_URLS.
