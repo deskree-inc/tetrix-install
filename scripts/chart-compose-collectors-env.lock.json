@@ -3,9 +3,9 @@
   "chart_repo": "deskree-inc/tetrix-ee-helm-chart",
   "chart_path": "deploy/docker/docker-compose.yml",
   "chart_env_example_path": "deploy/docker/.env.example",
-  "chart_ref": "chore/release-1.1.23-avenga-hotfix",
-  "chart_commit": "fd12a455ac7d88c7dfddc714d96c78a6ea029341",
-  "chart_version": "1.1.23",
+  "chart_ref": "v1.1.28",
+  "chart_commit": "c4c7ba2ef64904e85047673ea9bfcf3c8d65e5d8",
+  "chart_version": "1.1.28",
   "service_map": {
     "collectors-api": "collectors-api",
     "collectors-mcp": "collectors-mcp",

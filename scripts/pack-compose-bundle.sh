@@ -21,7 +21,7 @@ Usage:
   scripts/pack-compose-bundle.sh [--version x.y.z] [--output-dir DIR]
   scripts/pack-compose-bundle.sh --self-test
 
-  Packs git-tracked files at the repository root (excluding .github/) as
+  Packs git-tracked files at the repository root (excluding .github/, CLAUDE.md and AGENTS.md) as
   deploy-docker-<version>.tgz. Writes VERSION inside the tarball and a
   public-release.json sidecar next to it (version, commit, bundle sha256).
 
@@ -120,6 +120,9 @@ for raw in sys.stdin.buffer.read().split(b"\0"):
         continue
     rel = raw.decode("utf-8")
     if rel == ".github" or rel.startswith(".github/"):
+        continue
+    # Instructions for AI coding agents, not part of the install.
+    if rel in ("CLAUDE.md", "AGENTS.md"):
         continue
     src = os.path.join(root, rel)
     if not os.path.isfile(src):
