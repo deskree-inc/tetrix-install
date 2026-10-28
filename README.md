@@ -147,7 +147,7 @@ TLS (cert-manager ClusterIssuer **or** a pre-created TLS secret).
 ```bash
 helm upgrade --install tetrix \
   oci://registry-1.docker.io/deskree/tetrixaidb-chart \
-  --version 1.1.5 \
+  --version 1.1.28 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -164,7 +164,7 @@ A starter values file is in [`helm/values-example.yaml`](helm/values-example.yam
 A commented customer-safe skeleton is [`helm/values-reference.yaml`](helm/values-reference.yaml).
 The curated parameter catalog (every typical key, Table 1.8-G secret keys, unlicensed
 path, external DBs, opt-in collectors) is **[`HELM.md`](HELM.md)**.
-You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5`
+You can also `helm show values oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.28`
 for the machine-readable full catalog.
 
 **Without a license token** (Docker Hub / air-gapped / your own mirror).
@@ -173,7 +173,7 @@ secret first or pods stay in `ImagePullBackOff`:
 
 ```bash
 helm upgrade --install tetrix \
-  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.5 \
+  oci://registry-1.docker.io/deskree/tetrixaidb-chart --version 1.1.28 \
   --namespace tetrix --create-namespace \
   --timeout 25m --wait=false \
   --set ingress.host=tetrix.yourcompany.com \
@@ -195,12 +195,12 @@ Requires Docker + Compose v2.24+, `openssl`, `curl`, and `python3`.
 ### 1 — Get these files
 
 **Production (recommended):** download the checksummed release asset from this
-repository. SHA-256 is also in the [v1.1.5 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.5)
+repository. SHA-256 is also in the [v1.1.28 release notes](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.28)
 (`bundle_sha256` in `public-release.json`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deskree-inc/tetrix-install/main/scripts/download.sh \
-  | bash -s -- --version 1.1.5 --sha256 acbc3a0e066717b323e616d98868cb358e7bbaa2bd5291febd68b0e7339ded57 ~/tetrix-docker
+  | bash -s -- --version 1.1.28 --sha256 b43b00376ce2667a4716dc63e5aa0f55f8b39ce1d720ffa2aed2304e4d0030f8 ~/tetrix-docker
 cd ~/tetrix-docker
 ```
 
