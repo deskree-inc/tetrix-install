@@ -78,7 +78,7 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.29)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.30)")
 
 required_compose = (
     (":-sha-d64b4c9}", "daemon/remote"),
@@ -129,6 +129,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.29 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.30 published tags and does not pass --quiet"
 fi
 exit "$fail"
