@@ -6,9 +6,25 @@ Deskree GitHub repository.
 
 Latest published release: **1.1.28**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.28)).
-This tree's `VERSION` is **1.1.29** (not released yet), matching Helm chart 1.1.29. 1.1.29 moves
-the collectors to `sha-ba4a0b0` (tetrix-collectors main `ba4a0b0`) and Keycloak to 26.8.1
-(`sha-04b1e55`). Every first-party image is on its latest published build. Collectors:
+This tree's `VERSION` is **1.1.30** (not released yet), matching Helm chart 1.1.30. 1.1.29 was never
+published, so 1.1.30 carries everything below. 1.1.30 moves the collectors to `sha-7055373`
+(tetrix-collectors main `7055373`), the daemon/remote to `sha-d64b4c9` and the front-end to
+`sha-1036d52`. Every first-party image is on its latest published build. In 1.1.30:
+
+- **Collectors `sha-7055373`:** the MCP snapshot tools say why a graph is missing (an organization
+  with no connections, a build in progress, or a build that failed) instead of advising a sync, and
+  queue one build when that helps. Also per-owner fair dequeue, faster MCP traversals, large-repo
+  code indexing fixes, KMS key versions with an idle-key finding, test-to-code `covers` edges and
+  Kafka topics. **Migrations `0047_finding_result_watermark` and `0048_findings_members_gin`**
+  (additive, run by the migrate job). No new required env. `CODE_NATIVE_SELF_ATTRIBUTE` now
+  defaults to `1`; set it to `0` to keep the old attribution path.
+- **Daemon/remote `sha-d64b4c9`** (tetrix-ee#231): the native indexer resolves Rust `use` paths, so
+  Rust imports become edges. No store migration, no new env.
+- **Front-end `sha-1036d52`** (tetrix-front-end#355): a scaled-down workload reads "scaled down from
+  N" from its expected replicas. Without those fields the wording is unchanged.
+
+1.1.29 (never published on its own) moved the collectors to `sha-ba4a0b0` and Keycloak to 26.8.1
+(`sha-04b1e55`):
 
 - **Reliability:** the saga's stop check is bounded and fails open; persist re-sends a write the
   daemon marked retryable instead of failing the run; a drained run records why it was drained
@@ -37,8 +53,8 @@ from 26.7.x:**
   on and the mail server does not offer it; 26.7.3 sent that mail in plaintext.
 - Expect a short login outage while Keycloak restarts.
 
-Every other pin is unchanged: daemon/remote `sha-89456c6`, front-end `sha-8161019`, gateway
-`sha-6fd804d`, audit-logs `sha-2a150cc`, and admin-api / licensing / updater `sha-349d602`.
+Every other pin is unchanged: gateway `sha-6fd804d`, audit-logs `sha-2a150cc`, and admin-api /
+licensing / updater `sha-349d602`.
 
 Earlier, 1.1.28 moved only the front-end, to `sha-8161019`: tetrix-front-end#346 (customer Platform update card for
 owners/admins, support-only Observability, Settings copy, live support tickets, the overview
@@ -326,8 +342,9 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-ba4a0b0` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-ba4a0b0` adds `0046_whole_read_refusals` (two nullable columns on
+**Collectors `sha-7055373` is a one-way schema advance.** The migrate job runs
+`alembic upgrade head`. `sha-7055373` adds `0047_finding_result_watermark` and
+`0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
 `sha-60087ad` added `0043_graph_snapshot_refusals` (a new empty table, no backfill); `sha-61ad14a`, `sha-19e9c7b`, `sha-3319b28` and `sha-6e4d334` add no migration of their own.
