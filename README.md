@@ -9,7 +9,9 @@ Latest published release: **1.1.28**
 This tree's `VERSION` is **1.1.30** (not released yet), matching Helm chart 1.1.30. 1.1.29 was never
 published, so 1.1.30 carries everything below. 1.1.30 moves the collectors to `sha-7055373`
 (tetrix-collectors main `7055373`), the daemon/remote to `sha-d64b4c9` and the front-end to
-`sha-1036d52`. Every first-party image is on its latest published build. In 1.1.30:
+`sha-1036d52`. Every other first-party image is on its latest published build. Collectors stays
+on the dogfood-validated `sha-7055373`: the newer `sha-a7ddb35` adds only a Kafka prefix-deny fix
+(candidate edges) and docs, and ships in the next release. In 1.1.30:
 
 - **Collectors `sha-7055373`:** the MCP snapshot tools say why a graph is missing (an organization
   with no connections, a build in progress, or a build that failed) instead of advising a sync, and
