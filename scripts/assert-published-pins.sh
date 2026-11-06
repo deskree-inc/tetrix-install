@@ -4,17 +4,16 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.30 (collectors sha-7055373 is
-# tetrix-collectors main 7055373, publish-image run 41671946990, with migrations 0047_finding_result_watermark
-# and 0048_findings_members_gin; daemon/remote sha-d64b4c9 is tetrix-ee#231, docker-build-push run 40733617359;
-# front-end sha-1036d52 is front-end#355, publish-image run 40765855668; sha-3f7baca and sha-d83d976 were
-# cancelled before they pushed, so they are forbidden; gateway sha-6fd804d, the admin-api trio sha-349d602,
-# audit-logs sha-2a150cc and iam sha-04b1e55 (Keycloak 26.8.1, tetrix-iam#64) are unchanged and still the
-# latest published builds;
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.31 (collectors sha-2c700ce is
+# tetrix-collectors main 2c700ce, publish-image run 42272274578, with no new migration; daemon/remote sha-d565588
+# is tetrix-ee#249, docker-build-push run 42250095066; front-end sha-1036d52 is front-end#355, publish-image run
+# 40765855668; sha-3f7baca and sha-d83d976 were cancelled before they pushed, so they are forbidden; gateway
+# sha-6fd804d, the admin-api trio sha-349d602, audit-logs sha-2a150cc and iam sha-04b1e55 (Keycloak 26.8.1,
+# tetrix-iam#64) are unchanged and still the latest published builds;
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
-#   daemon/remote      sha-d64b4c9
+#   daemon/remote      sha-d565588
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-7055373
+#   collectors         sha-2c700ce
 #   frontend           sha-1036d52
 #   iam                sha-04b1e55
 #   admin-api          sha-349d602
@@ -66,11 +65,11 @@ for name, text, forbidden in (
             errors.append(f"{name} still pins unpublished {tag}")
 
 required_env = (
-    ("TETRIX_IMAGE_TAG=sha-d64b4c9", "TETRIX_IMAGE_TAG"),
+    ("TETRIX_IMAGE_TAG=sha-d565588", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-1036d52", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-7055373", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-2c700ce", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -78,14 +77,14 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.30)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.31)")
 
 required_compose = (
-    (":-sha-d64b4c9}", "daemon/remote"),
+    (":-sha-d565588}", "daemon/remote"),
     (":-sha-04b1e55}", "iam"),
     (":-sha-1036d52}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-7055373}", "collectors"),
+    (":-sha-2c700ce}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-6fd804d}", "gateway"),
 )
@@ -106,8 +105,8 @@ for var, tag in re.findall(r"^([A-Z_]+_IMAGE_TAG)=(sha-[0-9a-f]+)\s*$", uncommen
         errors.append(f".env.example pins {var}={tag}, not {expected[var]}")
 
 # setup.sh's CA-bundle fallback must be the same daemon tag as compose.
-if "TETRIX_IMAGE_TAG:-sha-d64b4c9" not in setup:
-    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-d64b4c9")
+if "TETRIX_IMAGE_TAG:-sha-d565588" not in setup:
+    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-d565588")
 
 login_active = uncomment(login)
 if "pull --quiet" in login_active or "pull -q" in login_active:
@@ -129,6 +128,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.30 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.31 published tags and does not pass --quiet"
 fi
 exit "$fail"
