@@ -4,14 +4,24 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.28**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.28)).
-This tree's `VERSION` is **1.1.30** (not released yet), matching Helm chart 1.1.30. 1.1.29 was never
-published, so 1.1.30 carries everything below. 1.1.30 moves the collectors to `sha-7055373`
-(tetrix-collectors main `7055373`), the daemon/remote to `sha-d64b4c9` and the front-end to
-`sha-1036d52`. Every other first-party image is on its latest published build. Collectors stays
-on the dogfood-validated `sha-7055373`: the newer `sha-a7ddb35` adds only a Kafka prefix-deny fix
-(candidate edges) and docs, and ships in the next release. In 1.1.30:
+Latest published release: **1.1.30**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.30)).
+This tree's `VERSION` is **1.1.31** (not released yet), matching Helm chart 1.1.31. 1.1.31 moves the
+collectors to `sha-2c700ce` (tetrix-collectors main `2c700ce`) and the daemon/remote to `sha-d565588`
+(tetrix-ee main `d565588`). Every other first-party image is unchanged and on its latest published
+build. In 1.1.31:
+
+- **Collectors `sha-2c700ce`:** diagnostics read the daemon's Meilisearch task queue (a backlog is
+  raised as `keyword_backlog`), all-namespace Kubernetes lists are paged, a Meilisearch
+  pending-task timeout is retried on single writes too, a finding for GCP IAM grants to deleted
+  principals, AWS reads every region, and a failed CronJob run is no longer reported as a crash
+  loop. It also carries the Kafka prefix-deny fix 1.1.30 held back, and the native-indexer changes:
+  the collector-side attribution path is retired, so `CODE_NATIVE_SELF_ATTRIBUTE=0` is ignored and
+  logged once. **No migration** (the schema stays at `0048_findings_members_gin`). No new required env.
+- **Daemon/remote `sha-d565588`** (tetrix-ee#249): `METRICS` reports the Meilisearch task queue and
+  index numbers in an optional `backends` block. No store migration, no new env.
+
+In 1.1.30 (published):
 
 - **Collectors `sha-7055373`:** the MCP snapshot tools say why a graph is missing (an organization
   with no connections, a build in progress, or a build that failed) instead of advising a sync, and
@@ -19,7 +29,7 @@ on the dogfood-validated `sha-7055373`: the newer `sha-a7ddb35` adds only a Kafk
   code indexing fixes, KMS key versions with an idle-key finding, test-to-code `covers` edges and
   Kafka topics. **Migrations `0047_finding_result_watermark` and `0048_findings_members_gin`**
   (additive, run by the migrate job). No new required env. `CODE_NATIVE_SELF_ATTRIBUTE` now
-  defaults to `1`; set it to `0` to keep the old attribution path.
+  defaults to `1`.
 - **Daemon/remote `sha-d64b4c9`** (tetrix-ee#231): the native indexer resolves Rust `use` paths, so
   Rust imports become edges. No store migration, no new env.
 - **Front-end `sha-1036d52`** (tetrix-front-end#355): a scaled-down workload reads "scaled down from
@@ -344,8 +354,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-7055373` is a one-way schema advance.** The migrate job runs
-`alembic upgrade head`. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-2c700ce` is a one-way schema advance from anything older than `sha-7055373`.** The
+migrate job runs `alembic upgrade head`. `sha-2c700ce` adds no migration of its own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
