@@ -41,11 +41,7 @@ permissions:
 jobs:
   pack-and-upload:
     name: Pack compose bundle
-    # do-publish: the publish-only runner (do-pub-1, rebuilt clean) in the org runner group
-    # `publish`, which only the release workflows on main / v* tags may use; off GitHub-hosted,
-    # whose billing refusals blocked releases (deskree-inc/tetrix-collectors#1380). Any other ref
-    # (a branch dispatch) runs on GitHub-hosted, so branch code never reaches the publish runner.
-    runs-on: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && fromJSON('["self-hosted","do-publish"]') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Resolve version
         id: target
@@ -79,7 +75,7 @@ jobs:
           fetch-depth: 0
 
       - name: The release tag is on main
-        # The scripts below run from the tag, on the publish runner. Only a commit main already
+        # The scripts below run from the tag with a contents: write token. Only a commit main already
         # contains may run there, whichever event or dispatch input named it (tetrix-collectors#1380).
         run: |
           set -euo pipefail
