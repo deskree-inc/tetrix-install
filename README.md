@@ -7,19 +7,33 @@ Deskree GitHub repository.
 Latest published release: **1.1.30**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.30)).
 This tree's `VERSION` is **1.1.31** (not released yet), matching Helm chart 1.1.31. 1.1.31 moves the
-collectors to `sha-2c700ce` (tetrix-collectors main `2c700ce`) and the daemon/remote to `sha-d565588`
-(tetrix-ee main `d565588`). Every other first-party image is unchanged and on its latest published
-build. In 1.1.31:
+collectors to `sha-9058736` (tetrix-collectors main `9058736`), the daemon/remote to `sha-f3f773c`
+(tetrix-ee main `f3f773c`) and the gateway to `sha-0d55284`. Every other first-party image is unchanged
+and on its latest published build. In 1.1.31:
 
-- **Collectors `sha-2c700ce`:** diagnostics read the daemon's Meilisearch task queue (a backlog is
-  raised as `keyword_backlog`), all-namespace Kubernetes lists are paged, a Meilisearch
-  pending-task timeout is retried on single writes too, a finding for GCP IAM grants to deleted
-  principals, AWS reads every region, and a failed CronJob run is no longer reported as a crash
-  loop. It also carries the Kafka prefix-deny fix 1.1.30 held back, and the native-indexer changes:
-  the collector-side attribution path is retired, so `CODE_NATIVE_SELF_ATTRIBUTE=0` is ignored and
-  logged once. **No migration** (the schema stays at `0048_findings_members_gin`). No new required env.
-- **Daemon/remote `sha-d565588`** (tetrix-ee#249): `METRICS` reports the Meilisearch task queue and
-  index numbers in an optional `backends` block. No store migration, no new env.
+- **Collectors `sha-9058736`:**
+  - **MCP org isolation:** on a multi-tenant install, an organization with no synced connection gets
+    "no graph for this organization" instead of reads across every organization, and a by-id read of
+    another organization's entity reads as not found.
+  - **Findings API:** findings can be acknowledged, marked expected, resolved and reopened.
+  - **Code index:** covers build/config, schema, web and docs files (secrets and data stay out),
+    gates file rows on a content hash, and indexes repos in parallel. A dead daemon connection
+    raises instead of dropping rows. The baked CLI is `cli-v0.6.6`.
+  - **Diagnostics:** they read the daemon's Meilisearch task queue (a backlog is raised as
+    `keyword_backlog`).
+  - **Kubernetes:** all-namespace lists are paged.
+  - **Meilisearch:** a pending-task timeout is retried on single writes too.
+  - **GCP:** a finding for IAM grants to deleted principals.
+  - **AWS:** every region is read.
+  - **CronJobs:** a failed run is no longer reported as a crash loop.
+  - **Kafka:** the prefix-deny fix 1.1.30 held back.
+  - **Native indexer:** the collector-side attribution path is retired, so
+    `CODE_NATIVE_SELF_ATTRIBUTE=0` is ignored and logged once.
+  - **No migration** (the schema stays at `0048_findings_members_gin`). No new required env.
+- **Daemon/remote `sha-f3f773c`:** `METRICS` reports the Meilisearch task queue and index numbers in
+  an optional `backends` block (tetrix-ee#249), and the `tetrix index` CLI work since then. No store
+  migration, no new env.
+- **Gateway `sha-0d55284`:** the same source rebuilt (only CI changed, gateway#53).
 
 In 1.1.30 (published):
 
@@ -354,8 +368,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-2c700ce` is a one-way schema advance from anything older than `sha-7055373`.** The
-migrate job runs `alembic upgrade head`. `sha-2c700ce` adds no migration of its own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-9058736` is a one-way schema advance from anything older than `sha-7055373`.** The
+migrate job runs `alembic upgrade head`. `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
