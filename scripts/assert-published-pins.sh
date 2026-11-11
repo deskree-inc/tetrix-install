@@ -4,8 +4,8 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.31 (collectors sha-9058736 is
-# tetrix-collectors main 9058736, publish-image run 42897246725, with no new migration; daemon/remote sha-f3f773c
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.31 (collectors sha-975a9f6 is
+# tetrix-collectors main 975a9f6, publish-image run 42917138200, with no new migration; daemon/remote sha-f3f773c
 # is tetrix-ee main f3f773c, docker-build-push run 42894550868, CLI-only changes since sha-d565588; gateway
 # sha-0d55284 is gateway#53, docker-build-push run 42860903238, a CI-only rebuild of sha-6fd804d; front-end
 # sha-1036d52 is front-end#355, publish-image run 40765855668; sha-3f7baca and sha-d83d976 were cancelled
@@ -14,7 +14,7 @@
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-f3f773c
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-9058736
+#   collectors         sha-975a9f6
 #   frontend           sha-1036d52
 #   iam                sha-04b1e55
 #   admin-api          sha-349d602
@@ -70,7 +70,7 @@ required_env = (
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-1036d52", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-9058736", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-975a9f6", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -85,7 +85,7 @@ required_compose = (
     (":-sha-04b1e55}", "iam"),
     (":-sha-1036d52}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-9058736}", "collectors"),
+    (":-sha-975a9f6}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-0d55284}", "gateway"),
 )

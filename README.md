@@ -7,11 +7,11 @@ Deskree GitHub repository.
 Latest published release: **1.1.30**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.30)).
 This tree's `VERSION` is **1.1.31** (not released yet), matching Helm chart 1.1.31. 1.1.31 moves the
-collectors to `sha-9058736` (tetrix-collectors main `9058736`), the daemon/remote to `sha-f3f773c`
+collectors to `sha-975a9f6` (tetrix-collectors main `975a9f6`), the daemon/remote to `sha-f3f773c`
 (tetrix-ee main `f3f773c`) and the gateway to `sha-0d55284`. Every other first-party image is unchanged
 and on its latest published build. In 1.1.31:
 
-- **Collectors `sha-9058736`:**
+- **Collectors `sha-975a9f6`:**
   - **MCP org isolation:** on a multi-tenant install, an organization with no synced connection gets
     "no graph for this organization" instead of reads across every organization, and a by-id read of
     another organization's entity reads as not found.
@@ -29,6 +29,12 @@ and on its latest published build. In 1.1.31:
   - **Kafka:** the prefix-deny fix 1.1.30 held back.
   - **Native indexer:** the collector-side attribution path is retired, so
     `CODE_NATIVE_SELF_ATTRIBUTE=0` is ignored and logged once.
+  - **Coupling sidecars:** `tetrix index` is the only writer of the import/inheritance/type
+    sidecars, so each edge has one id form. `CODE_NATIVE_EMIT_COUPLING_META=0` is now ignored and
+    logged once. A one-time, automatic step deletes the old collector-written duplicates; it shows
+    on the run row as `coupling_dedupe_deleted` / `coupling_dedupe_kept`. The first sync after the
+    upgrade reads every indexed repo's symbols once for it (about 12 extra minutes for 14 repos);
+    later syncs re-check only repos that still have kept rows.
   - **No migration** (the schema stays at `0048_findings_members_gin`). No new required env.
 - **Daemon/remote `sha-f3f773c`:** `METRICS` reports the Meilisearch task queue and index numbers in
   an optional `backends` block (tetrix-ee#249), and the `tetrix index` CLI work since then. No store
@@ -368,8 +374,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-9058736` is a one-way schema advance from anything older than `sha-7055373`.** The
-migrate job runs `alembic upgrade head`. `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-975a9f6` is a one-way schema advance from anything older than `sha-7055373`.** The
+migrate job runs `alembic upgrade head`. `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
