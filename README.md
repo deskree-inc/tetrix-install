@@ -4,12 +4,24 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.30**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.30)).
-This tree's `VERSION` is **1.1.31** (not released yet), matching Helm chart 1.1.31. 1.1.31 moves the
-collectors to `sha-975a9f6` (tetrix-collectors main `975a9f6`), the daemon/remote to `sha-f3f773c`
-(tetrix-ee main `f3f773c`) and the gateway to `sha-0d55284`. Every other first-party image is unchanged
-and on its latest published build. In 1.1.31:
+Latest published release: **1.1.31**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.31)).
+This tree's `VERSION` is **1.1.32** (not released yet), matching Helm chart 1.1.32. 1.1.32 moves only
+the collectors, to `sha-948ecb6` (tetrix-collectors main `948ecb6`). Every other first-party image is
+unchanged and on its latest published build. In 1.1.32:
+
+- **Collectors `sha-948ecb6`:**
+  - **Code index, two repos at once:** a sync that re-indexes several repos now indexes two at a
+    time by default, each on its own daemon connection. On a test install this ended indexing about
+    20-30% sooner with peak memory unchanged.
+  - **If a collectors container runs out of memory or disk after the upgrade** (two large repos
+    indexed at once), set `CODE_INDEX_INDEX_CONCURRENCY=1` in `.env` and run
+    `docker compose up -d` to go back to one at a time. On Helm (chart 1.1.32) the same setting is
+    `collectors.worker.indexConcurrency: "1"`.
+  - **No migration** (the schema stays at `0048_findings_members_gin`). No new required env.
+
+In 1.1.31 (published), which moved the collectors to `sha-975a9f6`, the daemon/remote to
+`sha-f3f773c` (tetrix-ee main `f3f773c`) and the gateway to `sha-0d55284`:
 
 - **Collectors `sha-975a9f6`:**
   - **MCP org isolation:** on a multi-tenant install, an organization with no synced connection gets
@@ -374,8 +386,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-975a9f6` is a one-way schema advance from anything older than `sha-7055373`.** The
-migrate job runs `alembic upgrade head`. `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-948ecb6` is a one-way schema advance from anything older than `sha-7055373`.** The
+migrate job runs `alembic upgrade head`. `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
