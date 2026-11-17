@@ -4,19 +4,19 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.32 (collectors sha-948ecb6 is
-# tetrix-collectors main 948ecb6, publish-image run 43147308806, with no new migration; daemon/remote sha-6f0578c
-# is tetrix-ee main 6f0578c, docker-build-push run 43943339741, an optional INDEX skipEmbedding flag and no
-# store migration; gateway
-# sha-0d55284 is gateway#53, docker-build-push run 42860903238, a CI-only rebuild of sha-6fd804d; front-end
-# sha-1036d52 is front-end#355, publish-image run 40765855668; sha-3f7baca and sha-d83d976 were cancelled
-# before they pushed, so they are forbidden; the admin-api trio sha-349d602, audit-logs sha-2a150cc and iam
-# sha-04b1e55 (Keycloak 26.8.1, tetrix-iam#64) are unchanged and still the latest published builds;
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.32 (collectors sha-fea66c8 is
+# tetrix-collectors main fea66c8, the data-source packs merge #1547, publish-image run 44160909931, which adds
+# migration 0049_source_packs; front-end sha-ce77f19 is front-end#371, the packs UI, publish-image run 44160996222;
+# daemon/remote sha-6f0578c is tetrix-ee main 6f0578c, docker-build-push run 43943339741, an optional INDEX
+# skipEmbedding flag and no store migration; gateway sha-0d55284 is gateway#53, docker-build-push run 42860903238,
+# a CI-only rebuild of sha-6fd804d; sha-3f7baca and sha-d83d976 were cancelled before they pushed, so they are
+# forbidden; the admin-api trio sha-349d602, audit-logs sha-2a150cc and iam sha-04b1e55 (Keycloak 26.8.1,
+# tetrix-iam#64) are unchanged and still the latest published builds;
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-6f0578c
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-948ecb6
-#   frontend           sha-1036d52
+#   collectors         sha-fea66c8
+#   frontend           sha-ce77f19
 #   iam                sha-04b1e55
 #   admin-api          sha-349d602
 #   audit-logs         sha-2a150cc
@@ -69,9 +69,9 @@ for name, text, forbidden in (
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-6f0578c", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
-    ("FRONTEND_IMAGE_TAG=sha-1036d52", "FRONTEND_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-ce77f19", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-948ecb6", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-fea66c8", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -84,9 +84,9 @@ for needle, label in required_env:
 required_compose = (
     (":-sha-6f0578c}", "daemon/remote"),
     (":-sha-04b1e55}", "iam"),
-    (":-sha-1036d52}", "frontend"),
+    (":-sha-ce77f19}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-948ecb6}", "collectors"),
+    (":-sha-fea66c8}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-0d55284}", "gateway"),
 )

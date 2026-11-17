@@ -7,15 +7,24 @@ Deskree GitHub repository.
 Latest published release: **1.1.31**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.31)).
 This tree's `VERSION` is **1.1.32** (not released yet), matching Helm chart 1.1.32. 1.1.32 moves
-the collectors to `sha-948ecb6` (tetrix-collectors main `948ecb6`) and the daemon/remote to
-`sha-6f0578c` (tetrix-ee main `6f0578c`). Every other first-party image is unchanged and on its
-latest published build. In 1.1.32:
+the collectors to `sha-fea66c8` (tetrix-collectors main `fea66c8`), the front-end to `sha-ce77f19`
+(tetrix-front-end main `ce77f19`) and the daemon/remote to `sha-6f0578c` (tetrix-ee main `6f0578c`).
+Every other first-party image is unchanged and on its latest published build. In 1.1.32:
+
+- **Data-source packs** (collectors `sha-fea66c8` with front-end `sha-ce77f19`): each source type
+  (GitHub, AWS, Kubernetes, and so on) belongs to a pack. An admin can turn a pack off under Sources >
+  Manage sources, which removes its sources from Add source. Every built-in pack is on after the
+  upgrade, so nothing changes until an admin turns one off. Add source now builds its form, field
+  help and pickers from the collectors catalog. **Migration `0049_source_packs`** (one new table,
+  no backfill) runs in the migrate step. No new required env. The front-end needs this collectors
+  build or newer; keep the two pins together.
 
 - **Daemon/remote `sha-6f0578c`:** `INDEX` and `INDEX_BATCH` accept an optional per-item
   `skipEmbedding` (tetrix-ee#264): the row is keyword-indexed and gets no vector. A client that does
   not send it sees no change. No store migration, no new env.
 
-- **Collectors `sha-948ecb6`:**
+- **Collectors `sha-fea66c8`** also carries everything in `sha-948ecb6`, and its baked `tetrix index` CLI
+  is `cli-v0.6.7` (coupling sidecars are written with `skipEmbedding`, tetrix-collectors#1538):
   - **Code index, two repos at once:** a sync that re-indexes several repos now indexes two at a
     time by default, each on its own daemon connection. On a test install this ended indexing about
     20-30% sooner with peak memory unchanged.
@@ -23,7 +32,6 @@ latest published build. In 1.1.32:
     indexed at once), set `CODE_INDEX_INDEX_CONCURRENCY=1` in `.env` and run
     `docker compose up -d` to go back to one at a time. On Helm (chart 1.1.32) the same setting is
     `collectors.worker.indexConcurrency: "1"`.
-  - **No migration** (the schema stays at `0048_findings_members_gin`). No new required env.
 
 In 1.1.31 (published), which moved the collectors to `sha-975a9f6`, the daemon/remote to
 `sha-f3f773c` (tetrix-ee main `f3f773c`) and the gateway to `sha-0d55284`:
@@ -391,8 +399,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-948ecb6` is a one-way schema advance from anything older than `sha-7055373`.** The
-migrate job runs `alembic upgrade head`. `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-fea66c8` is a one-way schema advance from anything older than it.** The
+migrate job runs `alembic upgrade head`. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
