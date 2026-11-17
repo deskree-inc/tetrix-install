@@ -564,7 +564,7 @@ services:
 
   # ── Core application ────────────────────────────────────────────────────────
   daemon:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-f3f773c}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb:${TETRIX_IMAGE_TAG:-sha-6f0578c}
     <<: *local-hosts
     env_file:
       - path: .env
@@ -612,7 +612,7 @@ services:
     restart: unless-stopped
 
   remote:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-f3f773c}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrixaidb-remote:${TETRIX_IMAGE_TAG:-sha-6f0578c}
     <<: *local-hosts
     env_file:
       - path: .env

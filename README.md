@@ -6,9 +6,14 @@ Deskree GitHub repository.
 
 Latest published release: **1.1.31**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.31)).
-This tree's `VERSION` is **1.1.32** (not released yet), matching Helm chart 1.1.32. 1.1.32 moves only
-the collectors, to `sha-948ecb6` (tetrix-collectors main `948ecb6`). Every other first-party image is
-unchanged and on its latest published build. In 1.1.32:
+This tree's `VERSION` is **1.1.32** (not released yet), matching Helm chart 1.1.32. 1.1.32 moves
+the collectors to `sha-948ecb6` (tetrix-collectors main `948ecb6`) and the daemon/remote to
+`sha-6f0578c` (tetrix-ee main `6f0578c`). Every other first-party image is unchanged and on its
+latest published build. In 1.1.32:
+
+- **Daemon/remote `sha-6f0578c`:** `INDEX` and `INDEX_BATCH` accept an optional per-item
+  `skipEmbedding` (tetrix-ee#264): the row is keyword-indexed and gets no vector. A client that does
+  not send it sees no change. No store migration, no new env.
 
 - **Collectors `sha-948ecb6`:**
   - **Code index, two repos at once:** a sync that re-indexes several repos now indexes two at a

@@ -5,14 +5,15 @@
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
 # lock recorded, so it stays forbidden. Current pins match Helm 1.1.32 (collectors sha-948ecb6 is
-# tetrix-collectors main 948ecb6, publish-image run 43147308806, with no new migration; daemon/remote sha-f3f773c
-# is tetrix-ee main f3f773c, docker-build-push run 42894550868, CLI-only changes since sha-d565588; gateway
+# tetrix-collectors main 948ecb6, publish-image run 43147308806, with no new migration; daemon/remote sha-6f0578c
+# is tetrix-ee main 6f0578c, docker-build-push run 43943339741, an optional INDEX skipEmbedding flag and no
+# store migration; gateway
 # sha-0d55284 is gateway#53, docker-build-push run 42860903238, a CI-only rebuild of sha-6fd804d; front-end
 # sha-1036d52 is front-end#355, publish-image run 40765855668; sha-3f7baca and sha-d83d976 were cancelled
 # before they pushed, so they are forbidden; the admin-api trio sha-349d602, audit-logs sha-2a150cc and iam
 # sha-04b1e55 (Keycloak 26.8.1, tetrix-iam#64) are unchanged and still the latest published builds;
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
-#   daemon/remote      sha-f3f773c
+#   daemon/remote      sha-6f0578c
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
 #   collectors         sha-948ecb6
 #   frontend           sha-1036d52
@@ -66,7 +67,7 @@ for name, text, forbidden in (
             errors.append(f"{name} still pins unpublished {tag}")
 
 required_env = (
-    ("TETRIX_IMAGE_TAG=sha-f3f773c", "TETRIX_IMAGE_TAG"),
+    ("TETRIX_IMAGE_TAG=sha-6f0578c", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-1036d52", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
@@ -81,7 +82,7 @@ for needle, label in required_env:
         errors.append(f".env.example must pin {needle} (Helm 1.1.32)")
 
 required_compose = (
-    (":-sha-f3f773c}", "daemon/remote"),
+    (":-sha-6f0578c}", "daemon/remote"),
     (":-sha-04b1e55}", "iam"),
     (":-sha-1036d52}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
@@ -106,8 +107,8 @@ for var, tag in re.findall(r"^([A-Z_]+_IMAGE_TAG)=(sha-[0-9a-f]+)\s*$", uncommen
         errors.append(f".env.example pins {var}={tag}, not {expected[var]}")
 
 # setup.sh's CA-bundle fallback must be the same daemon tag as compose.
-if "TETRIX_IMAGE_TAG:-sha-f3f773c" not in setup:
-    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-f3f773c")
+if "TETRIX_IMAGE_TAG:-sha-6f0578c" not in setup:
+    errors.append("scripts/setup.sh must fall back to the compose daemon pin sha-6f0578c")
 
 login_active = uncomment(login)
 if "pull --quiet" in login_active or "pull -q" in login_active:
