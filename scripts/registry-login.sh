@@ -107,7 +107,7 @@ if [ "${MODE:-dev}" = "cloud" ]; then
     "docker is not on PATH" 2
 
   # Ubuntu docker.io 29 has no compose plugin. `compose.sh pull --quiet` then
-  # becomes `docker --quiet` (sangam-class tetrix_registry_pull_failed).
+  # becomes `docker --quiet` (the tetrix_registry_pull_failed failure).
   if ! docker compose version >/dev/null 2>&1; then
     command -v apt-get >/dev/null 2>&1 || cloud_die tetrix_registry_pull_failed \
       "docker compose is not a command and apt-get is not available" 1
