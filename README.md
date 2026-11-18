@@ -7,10 +7,10 @@ Deskree GitHub repository.
 Latest published release: **1.1.33**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.33)).
 This tree's `VERSION` is **1.1.34** (not released yet), matching Helm chart 1.1.34. 1.1.34 moves
-the collectors to `sha-0a9cd59` (tetrix-collectors main `0a9cd59`). Every other first-party image is
-unchanged. In 1.1.34:
+the collectors to `sha-52b0d41` (tetrix-collectors main `52b0d41`: the code of `0a9cd59` plus a changelog
+fragment). Every other first-party image is unchanged. In 1.1.34:
 
-- **Collectors `sha-0a9cd59`:** the baked `tetrix index` CLI is `cli-v0.6.8`. In a Vue or Svelte
+- **Collectors `sha-52b0d41`:** the baked `tetrix index` CLI is `cli-v0.6.8`. In a Vue or Svelte
   file, a `<script>` inside an attribute value no longer swallows or cuts the script block
   (tetrix-ee#259). A GitLab repo that the ingestion budget cut keeps its "raise the budget?"
   question even when the sync that cut it dies before asking: the next sync asks, once
@@ -416,8 +416,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-0a9cd59` is a one-way schema advance from anything older than `sha-fea66c8`.** The
-migrate job runs `alembic upgrade head`. `sha-0a9cd59` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-52b0d41` is a one-way schema advance from anything older than `sha-fea66c8`.** The
+migrate job runs `alembic upgrade head`. `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
