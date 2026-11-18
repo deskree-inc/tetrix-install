@@ -4,12 +4,21 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.31**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.31)).
-This tree's `VERSION` is **1.1.32** (not released yet), matching Helm chart 1.1.32. 1.1.32 moves
-the collectors to `sha-fea66c8` (tetrix-collectors main `fea66c8`), the front-end to `sha-ce77f19`
-(tetrix-front-end main `ce77f19`) and the daemon/remote to `sha-6f0578c` (tetrix-ee main `6f0578c`).
-Every other first-party image is unchanged and on its latest published build. In 1.1.32:
+Latest published release: **1.1.32**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.32)).
+This tree's `VERSION` is **1.1.33** (not released yet), matching Helm chart 1.1.33. 1.1.33 moves
+the collectors to `sha-41aaa36` (tetrix-collectors main `41aaa36`) and the daemon/remote to
+`sha-fbd9dbe` (tetrix-ee main `fbd9dbe`). Every other first-party image is unchanged and on its
+latest published build. In 1.1.33:
+
+- **Collectors `sha-41aaa36`:** the baked `tetrix index` CLI is `cli-v0.6.7`, which 1.1.32 meant to
+  ship. It writes its coupling sidecars with `skipEmbedding`, so they are keyword-indexed and get no
+  vector. The code is the same as `sha-fea66c8` plus a test-only fix. No migration, no new env.
+- **Daemon/remote `sha-fbd9dbe`:** only the indexer's Vue/Svelte parser changes (tetrix-ee#259). No
+  store migration, no new env.
+
+In 1.1.32 (published), which moved the collectors to `sha-fea66c8`, the front-end to `sha-ce77f19`
+and the daemon/remote to `sha-6f0578c`:
 
 - **Data-source packs** (collectors `sha-fea66c8` with front-end `sha-ce77f19`): each source type
   (GitHub, AWS, Kubernetes, and so on) belongs to a pack. An admin can turn a pack off under Sources >
@@ -23,8 +32,8 @@ Every other first-party image is unchanged and on its latest published build. In
   `skipEmbedding` (tetrix-ee#264): the row is keyword-indexed and gets no vector. A client that does
   not send it sees no change. No store migration, no new env.
 
-- **Collectors `sha-fea66c8`** also carries everything in `sha-948ecb6`, and its baked `tetrix index` CLI
-  is `cli-v0.6.7` (coupling sidecars are written with `skipEmbedding`, tetrix-collectors#1538):
+- **Collectors `sha-fea66c8`** also carries everything in `sha-948ecb6`. Its baked `tetrix index` CLI
+  is `cli-v0.6.6`, not `cli-v0.6.7` as first stated; 1.1.33 ships `cli-v0.6.7`:
   - **Code index, two repos at once:** a sync that re-indexes several repos now indexes two at a
     time by default, each on its own daemon connection. On a test install this ended indexing about
     20-30% sooner with peak memory unchanged.
@@ -399,8 +408,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-fea66c8` is a one-way schema advance from anything older than it.** The
-migrate job runs `alembic upgrade head`. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-41aaa36` is a one-way schema advance from anything older than `sha-fea66c8`.** The
+migrate job runs `alembic upgrade head`. `sha-41aaa36` adds no migration of its own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
