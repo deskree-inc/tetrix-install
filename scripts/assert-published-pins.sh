@@ -4,19 +4,20 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.33 (collectors sha-41aaa36 is
-# tetrix-collectors main 41aaa36, publish-image run 44214502626, the first build that bakes the cli-v0.6.7
-# CLI; it carries migration 0049_source_packs from fea66c8 and adds none; front-end sha-ce77f19 is
-# front-end#371, the packs UI, publish-image run 44160996222; daemon/remote sha-fbd9dbe is tetrix-ee main
-# fbd9dbe, docker-build-push run 44203307177, the indexer's Vue/Svelte parser fix and no store migration;
-# gateway sha-0d55284 is gateway#53, docker-build-push run 42860903238, a CI-only rebuild of sha-6fd804d;
-# sha-3f7baca and sha-d83d976 were cancelled before they pushed, so they are forbidden; the admin-api trio
-# sha-349d602, audit-logs sha-2a150cc and iam sha-04b1e55 (Keycloak 26.8.1, tetrix-iam#64) are unchanged
-# and still the latest published builds;
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.34 (collectors sha-0a9cd59 is
+# tetrix-collectors main 0a9cd59, the merge of #1549, publish-image run 44229291489, a rebuild after the
+# TETRIX_CLI_VERSION variable fix that bakes the cli-v0.6.8 CLI (GHCR index sha256:4335c90f004f; the merge
+# build first pushed under the same tag baked cli-v0.6.7); it carries migration 0049_source_packs from
+# fea66c8 and adds none; front-end sha-ce77f19 is front-end#371, the packs UI, publish-image run 44160996222;
+# daemon/remote sha-fbd9dbe is tetrix-ee main fbd9dbe, docker-build-push run 44203307177, the indexer's
+# Vue/Svelte parser fix and no store migration; gateway sha-0d55284 is gateway#53, docker-build-push run
+# 42860903238, a CI-only rebuild of sha-6fd804d; sha-3f7baca and sha-d83d976 were cancelled before they
+# pushed, so they are forbidden; the admin-api trio sha-349d602, audit-logs sha-2a150cc and iam sha-04b1e55
+# (Keycloak 26.8.1, tetrix-iam#64) are unchanged;
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-fbd9dbe
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-41aaa36
+#   collectors         sha-0a9cd59
 #   frontend           sha-ce77f19
 #   iam                sha-04b1e55
 #   admin-api          sha-349d602
@@ -72,7 +73,7 @@ required_env = (
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-ce77f19", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-41aaa36", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-0a9cd59", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -80,14 +81,14 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.33)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.34)")
 
 required_compose = (
     (":-sha-fbd9dbe}", "daemon/remote"),
     (":-sha-04b1e55}", "iam"),
     (":-sha-ce77f19}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-41aaa36}", "collectors"),
+    (":-sha-0a9cd59}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-0d55284}", "gateway"),
 )
@@ -131,6 +132,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.32 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.34 published tags and does not pass --quiet"
 fi
 exit "$fail"
