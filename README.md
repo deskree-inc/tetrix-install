@@ -4,11 +4,23 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.33**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.33)).
-This tree's `VERSION` is **1.1.34** (not released yet), matching Helm chart 1.1.34. 1.1.34 moves
-the collectors to `sha-52b0d41` (tetrix-collectors main `52b0d41`: the code of `0a9cd59` plus a changelog
-fragment). Every other first-party image is unchanged. In 1.1.34:
+Latest published release: **1.1.34**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.34)).
+This tree's `VERSION` is **1.1.35** (not released yet), matching Helm chart 1.1.35. 1.1.35 moves
+the collectors to `sha-89ea7fa` and the front-end to `sha-339f465`: the data-source packs release-one
+close-out. Every other first-party image is unchanged. In 1.1.35:
+
+- **Collectors `sha-89ea7fa`:** a config-only edit that switches a connection's auth mode runs that
+  mode's credential check (tetrix-collectors#1540). A webhook delivery for a connection whose pack is
+  not loaded gets a 503 and the binding shows as degraded (#1541). Disconnecting a source deletes the
+  webhook Tetrix registered on it (#1543). The image keeps only the Google discovery documents the
+  packs use, about 110 MB smaller. The baked `tetrix index` CLI stays `cli-v0.6.8`. No migration, no
+  new env.
+- **Front-end `sha-339f465`:** blanking an optional field while editing a source clears it
+  (tetrix-front-end#377), and the AWS External ID step validates the connection before it finishes
+  (#379). Needs collectors `sha-89ea7fa` or newer.
+
+In 1.1.34 (published), which moved the collectors to `sha-52b0d41`:
 
 - **Collectors `sha-52b0d41`:** the baked `tetrix index` CLI is `cli-v0.6.8`. In a Vue or Svelte
   file, a `<script>` inside an attribute value no longer swallows or cuts the script block
@@ -416,8 +428,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-52b0d41` is a one-way schema advance from anything older than `sha-fea66c8`.** The
-migrate job runs `alembic upgrade head`. `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-89ea7fa` is a one-way schema advance from anything older than `sha-fea66c8`.** The
+migrate job runs `alembic upgrade head`. `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
