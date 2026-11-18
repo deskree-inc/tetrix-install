@@ -4,10 +4,10 @@
 # Sangam-class 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.34 (collectors sha-0a9cd59 is
-# tetrix-collectors main 0a9cd59, the merge of #1549, publish-image run 44229291489, a rebuild after the
-# TETRIX_CLI_VERSION variable fix that bakes the cli-v0.6.8 CLI (GHCR index sha256:4335c90f004f; the merge
-# build first pushed under the same tag baked cli-v0.6.7); it carries migration 0049_source_packs from
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.34 (collectors sha-52b0d41 is
+# tetrix-collectors main 52b0d41, the merge of #1551, publish-image run 44229764108, built after the
+# TETRIX_CLI_VERSION variable fix so it bakes the cli-v0.6.8 CLI (GHCR index sha256:b90650ce1873); its code is
+# 0a9cd59's (the merge of #1549) plus a changelog fragment; it carries migration 0049_source_packs from
 # fea66c8 and adds none; front-end sha-ce77f19 is front-end#371, the packs UI, publish-image run 44160996222;
 # daemon/remote sha-fbd9dbe is tetrix-ee main fbd9dbe, docker-build-push run 44203307177, the indexer's
 # Vue/Svelte parser fix and no store migration; gateway sha-0d55284 is gateway#53, docker-build-push run
@@ -17,7 +17,7 @@
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-fbd9dbe
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-0a9cd59
+#   collectors         sha-52b0d41
 #   frontend           sha-ce77f19
 #   iam                sha-04b1e55
 #   admin-api          sha-349d602
@@ -73,7 +73,7 @@ required_env = (
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
     ("FRONTEND_IMAGE_TAG=sha-ce77f19", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-0a9cd59", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-52b0d41", "COLLECTORS_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -88,7 +88,7 @@ required_compose = (
     (":-sha-04b1e55}", "iam"),
     (":-sha-ce77f19}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-0a9cd59}", "collectors"),
+    (":-sha-52b0d41}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-0d55284}", "gateway"),
 )
