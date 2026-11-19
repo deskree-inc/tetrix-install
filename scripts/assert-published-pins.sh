@@ -23,7 +23,15 @@
 #   admin-api          sha-349d602
 #   audit-logs         sha-2a150cc
 #   gateway            sha-0d55284
+#   pack-runner        sha-1a46d94  NOT PUBLISHED YET (see below)
 #
+# The pack runner (deskree/tetrix-pack-runner, tetrix-collectors#1637) is new on
+# feature/outside-packs, and its pin is a placeholder: nothing has published the
+# image yet. tetrix-collectors#1638 (sandbox task S6) builds and publishes it, and
+# the release repins this tag to that build. It is in the pin tables below so
+# the compose default and .env.example cannot drift apart, but it is not in
+# UNPUBLISHED, because no build of it has failed: a bundle must not ship until
+# this line names a tag that resolves on ghcr.io/deskree-inc for both arches.
 # Ubuntu docker.io 29 has no compose plugin. `compose.sh pull --quiet` is parsed
 # as `docker --quiet` → tetrix_registry_pull_failed. Cloud guests get compose-v2
 # from helm 0.8.43+; this public tree must not reintroduce --quiet or assume
@@ -78,6 +86,8 @@ required_env = (
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
     ("GATEWAY_IMAGE_TAG=sha-0d55284", "GATEWAY_IMAGE_TAG"),
+    # Placeholder until tetrix-collectors#1638 publishes the image (header).
+    ("PACK_RUNNER_IMAGE_TAG=sha-1a46d94", "PACK_RUNNER_IMAGE_TAG"),
 )
 for needle, label in required_env:
     if needle not in env:
@@ -91,6 +101,7 @@ required_compose = (
     (":-sha-89ea7fa}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-0d55284}", "gateway"),
+    (":-sha-1a46d94}", "pack-runner"),
 )
 for needle, label in required_compose:
     if needle not in compose:

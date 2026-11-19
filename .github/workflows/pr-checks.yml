@@ -64,6 +64,17 @@ jobs:
           chmod +x scripts/assert-postgres-healthcheck-tcp.sh
           scripts/assert-postgres-healthcheck-tcp.sh
 
+      # tetrix-collectors#1637: the pack runner pool, where an outside pack's code runs. The runner
+      # must hold no core setting, sit only on the internal pack-sandbox network, mount /scratch
+      # exec and carry no healthcheck; the egress proxy holds only the API URL and the denial list.
+      - name: Pack runner pool keeps core out of the sandbox
+        run: |
+          set -euo pipefail
+          pip install -q pyyaml
+          chmod +x scripts/assert-pack-runner-compose.sh
+          scripts/assert-pack-runner-compose.sh --self-test
+          scripts/assert-pack-runner-compose.sh
+
       # tetrix-install#51: this compose is hand-maintained, and chart 1.0.6-1.0.8 added
       # TETRIX_MCP_API_BASE_URL, the four-entry TETRIX_API_SERVICE_READYZ_URLS map (+ 6 s MCP
       # timeout) and one shared TETRIX_IDENTITY_SALT to the chart's deploy/docker without any of it
