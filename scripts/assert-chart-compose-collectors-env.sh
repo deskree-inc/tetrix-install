@@ -21,6 +21,11 @@
 #   TETRIX_OPS_LOG_RETENTION_DAYS    local operational_logs retention, default 14, 1..30
 #   TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS deployment-scoped telemetry allowlist, default empty
 #
+# tetrix-collectors#1623 adds two more, also in the shared anchor:
+#   TETRIX_REGISTRY_MODE             origin | customer_mirror, the .env value licensing and the updater read
+#   TETRIX_MIRROR_REGISTRY           the image prefix TETRIX_IMAGE_ORIGIN; collectors reads outside
+#                                    data-source packs only from it in customer_mirror mode
+#
 # HOW: the chart repository is private and this public repository's CI has no
 # secret for it, so the chart's values are recorded in
 # scripts/chart-compose-collectors-env.lock.json (chart ref + commit + version +
@@ -73,10 +78,19 @@ KEYS = (
     "TETRIX_CHART_VERSION",
     "TETRIX_OPS_LOG_RETENTION_DAYS",
     "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS",
+    # tetrix-collectors#1623: where an outside data-source pack may be read from
+    "TETRIX_REGISTRY_MODE",
+    "TETRIX_MIRROR_REGISTRY",
 )
-# helm#448: keys that must live ONCE, in the x-collectors-env anchor (every collectors service).
-ANCHOR_KEYS = ("TETRIX_CHART_VERSION", "TETRIX_OPS_LOG_RETENTION_DAYS", "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS")
+# helm#448, tetrix-collectors#1623: keys that must live ONCE, in the x-collectors-env anchor
+# (every collectors service).
+ANCHOR_KEYS = (
+    "TETRIX_CHART_VERSION", "TETRIX_OPS_LOG_RETENTION_DAYS", "TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS",
+    "TETRIX_REGISTRY_MODE", "TETRIX_MIRROR_REGISTRY",
+)
 RETENTION_RANGE = (1, 30)
+MODE_FROM_ENV = "${TETRIX_REGISTRY_MODE:-origin}"
+MIRROR_FROM_ORIGIN = "${TETRIX_IMAGE_ORIGIN-}"
 # The services that must share one salt (chart#397): api, worker, dispatcher, mcp.
 SALT_COMMANDS = ("api", "worker", "dispatcher", "mcp")
 READYZ_ENTRIES = {"api", "dispatcher", "mcp", "worker"}
@@ -294,6 +308,13 @@ def check_invariants(compose_text):
             if var != "TETRIX_RELEASE_VERSION":
                 errors.append(f"TETRIX_CHART_VERSION on {s_name!r} must come from TETRIX_RELEASE_VERSION "
                               f"(the VERSION-stamped release), got {vals['TETRIX_CHART_VERSION']!r}")
+        # tetrix-collectors#1623: the mode licensing and the updater read, and the image prefix itself.
+        if vals.get("TETRIX_REGISTRY_MODE", MODE_FROM_ENV) != MODE_FROM_ENV:
+            errors.append(f"TETRIX_REGISTRY_MODE on {s_name!r} must be {MODE_FROM_ENV!r}, "
+                          f"got {vals['TETRIX_REGISTRY_MODE']!r}")
+        if vals.get("TETRIX_MIRROR_REGISTRY", MIRROR_FROM_ORIGIN) != MIRROR_FROM_ORIGIN:
+            errors.append(f"TETRIX_MIRROR_REGISTRY on {s_name!r} must be the image prefix {MIRROR_FROM_ORIGIN!r}, "
+                          f"got {vals['TETRIX_MIRROR_REGISTRY']!r}")
 
     # 2. The readyz map: exactly the four entries, each on a real service of THIS file, on a port it
     #    listens on, at /readyz.
@@ -483,6 +504,11 @@ def self_test(compose_text, env_text, lock):
         ("deployment admin accounts dropped from the anchor",
          sub(compose_text, "  TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS: ${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}\n", ""),
          env_text, lock),
+        ("registry mode dropped from the anchor",
+         sub(compose_text, "  TETRIX_REGISTRY_MODE: ${TETRIX_REGISTRY_MODE:-origin}\n", ""), env_text, lock),
+        ("mirror registry no longer the image prefix",
+         sub(compose_text, "  TETRIX_MIRROR_REGISTRY: ${TETRIX_IMAGE_ORIGIN-}\n",
+             "  TETRIX_MIRROR_REGISTRY: ${TETRIX_MIRROR_REGISTRY:-}\n"), env_text, lock),
         (".env.example loses the retention entry", compose_text,
          sub(env_text, "# TETRIX_OPS_LOG_RETENTION_DAYS=14\n", ""), lock),
         (".env.example loses the salt entry", compose_text, sub(env_text, "# TETRIX_IDENTITY_SALT=\n", ""), lock),
@@ -502,7 +528,8 @@ def self_test(compose_text, env_text, lock):
         "MCP timeout back to 3 s", "MCP base URL removed", "readyz map loses an entry",
         "readyz worker on the wrong port", "readyz points at a service this file does not have",
         "retention default out of range", "chart version dropped from the anchor",
-        "deployment admin accounts dropped from the anchor",
+        "deployment admin accounts dropped from the anchor", "registry mode dropped from the anchor",
+        "mirror registry no longer the image prefix",
     }
     fails = 0
     for name, ctext, etext, lk in cases:

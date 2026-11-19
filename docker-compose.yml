@@ -41,6 +41,13 @@ x-collectors-env: &collectors-env
   TETRIX_CHART_VERSION: ${TETRIX_RELEASE_VERSION:-}
   TETRIX_OPS_LOG_RETENTION_DAYS: ${TETRIX_OPS_LOG_RETENTION_DAYS:-14}
   TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS: ${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}
+  # tetrix-collectors#1623 (twin of the helm collectors ConfigMap keys): where an outside
+  # data-source pack may be read from. TETRIX_REGISTRY_MODE is the same .env value licensing and
+  # the updater read (origin | customer_mirror). The mirror is the image prefix every image line
+  # uses, as given (e.g. `registry.internal/`). Compose cannot make it conditional, so in origin
+  # mode it still carries the vendor origin: collectors reads it only in customer_mirror mode.
+  TETRIX_REGISTRY_MODE: ${TETRIX_REGISTRY_MODE:-origin}
+  TETRIX_MIRROR_REGISTRY: ${TETRIX_IMAGE_ORIGIN-}
   # Keycloak additive override: mode stays "logto"; ISSUER+JWKS_URL repoint verification.
   TETRIX_API_AUTH_MODE: logto
   TETRIX_API_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_API}
