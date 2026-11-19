@@ -4,7 +4,7 @@
   "chart_path": "deploy/docker/docker-compose.yml",
   "chart_env_example_path": "deploy/docker/.env.example",
   "chart_ref": "feature/outside-packs",
-  "chart_commit": "b8b9c44f9ac0aa625f33b001d129b9a8833f708a",
+  "chart_commit": "979d142f9dae206aa617aa98609ae800aa216e05",
   "chart_version": "1.1.36",
   "service_map": {
     "collectors-api": "collectors-api",
@@ -29,7 +29,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-mcp": {
       "TETRIX_MCP_API_BASE_URL": "${COLLECTORS_MCP_API_BASE_URL:-http://collectors-api:8080}",
@@ -41,7 +41,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-dispatcher": {
       "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
@@ -51,7 +51,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-worker": {
       "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
@@ -61,7 +61,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-healthcheck": {
       "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
@@ -71,7 +71,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-hitl": {
       "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
@@ -81,7 +81,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-identity-consumer": {
       "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
@@ -91,7 +91,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-session-consumer": {
       "TETRIX_IDENTITY_SALT": "${TETRIX_IDENTITY_SALT:-}",
@@ -101,7 +101,7 @@
       "TETRIX_REGISTRY_MODE": "${TETRIX_REGISTRY_MODE:-origin}",
       "TETRIX_MIRROR_REGISTRY": "${TETRIX_IMAGE_ORIGIN-}",
       "TETRIX_PACK_RUNNER_SERVICE": "collectors-pack-runner",
-      "TETRIX_PACK_EGRESS_SERVICE": "collectors-pack-egress"
+      "TETRIX_PACK_EGRESS_SERVICE": "pack-egress"
     },
     "collectors-pack-runner": {
       "PACK_RUNNER_CORE_SERVICES": "collectors-api,collectors-worker,collectors-healthcheck"

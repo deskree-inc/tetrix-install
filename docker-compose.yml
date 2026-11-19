@@ -50,9 +50,11 @@ x-collectors-env: &collectors-env
   TETRIX_MIRROR_REGISTRY: ${TETRIX_IMAGE_ORIGIN-}
   # tetrix-collectors#1637 (twin of the helm collectors ConfigMap keys): where an outside pack's code
   # runs. Core resolves collectors-pack-runner to the runners' addresses on pack-sandbox, and
-  # collectors-pack-egress to the address each lease's egress goes through (port 3128).
+  # pack-egress to the address each lease's egress goes through (core appends port 3128).
+  # tetrix-collectors#1645: pack-egress is the proxy's alias on pack-sandbox alone. Its service
+  # name answers with its default-network address, which a runner cannot reach.
   TETRIX_PACK_RUNNER_SERVICE: collectors-pack-runner
-  TETRIX_PACK_EGRESS_SERVICE: collectors-pack-egress
+  TETRIX_PACK_EGRESS_SERVICE: pack-egress
   # Keycloak additive override: mode stays "logto"; ISSUER+JWKS_URL repoint verification.
   TETRIX_API_AUTH_MODE: logto
   TETRIX_API_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_API}
@@ -1491,7 +1493,12 @@ services:
       - /tmp
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    networks: [default, pack-sandbox]
+    # pack-egress is the name core resolves for a lease (TETRIX_PACK_EGRESS_SERVICE): scoped to
+    # pack-sandbox, it answers with the one address a runner can reach.
+    networks:
+      default:
+      pack-sandbox:
+        aliases: [pack-egress]
     environment:
       PACK_EGRESS_API_URL: http://collectors-api:8080
       PACK_EGRESS_DENY_HOSTS: admin-api,collectors-api,collectors-mcp,collectors-pack-runner,daemon,keycloak,meilisearch,neo4j,postgres,remote,seaweedfs,updater,vault

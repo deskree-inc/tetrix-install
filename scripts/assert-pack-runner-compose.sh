@@ -18,7 +18,11 @@
 #   B6  the egress proxy's environment is the API URL (collectors-api on its PORT) and the denial
 #       list of bare service names, nothing else, with no env_file and no anchor merge.
 #   B7  api, worker and healthcheck are on default and pack-sandbox, nothing else is on
-#       pack-sandbox, and the shared anchor names the runner and proxy services.
+#       pack-sandbox, and the shared anchor names the runner service.
+#   B8  the shared anchor's TETRIX_PACK_EGRESS_SERVICE is a bare name the proxy carries as an
+#       alias on pack-sandbox alone, not a service name (tetrix-collectors#1645). Core resolves it
+#       and appends 3128 itself. The service name answers with the proxy's default-network
+#       address, which a runner cannot reach, so every lease with egress is refused.
 #
 # Usage:
 #   scripts/assert-pack-runner-compose.sh              # check docker-compose.yml and .env.example
@@ -93,9 +97,15 @@ def errors(text, env_text):
     if on_sandbox != set(CORE_SERVICES.split(",")) | {"collectors-pack-runner", "collectors-pack-egress"}:
         e.append(f"B7 on pack-sandbox: {sorted(on_sandbox)}")
     env = (services.get("collectors-worker") or {}).get("environment") or {}
-    if (env.get("TETRIX_PACK_RUNNER_SERVICE"), env.get("TETRIX_PACK_EGRESS_SERVICE")) != \
-            ("collectors-pack-runner", "collectors-pack-egress"):
-        e.append("B7 the shared anchor does not name the runner and proxy services")
+    if env.get("TETRIX_PACK_RUNNER_SERVICE") != "collectors-pack-runner":
+        e.append("B7 the shared anchor does not name the runner service")
+    nets = egr.get("networks") or {}
+    nets = nets if isinstance(nets, dict) else dict.fromkeys(nets)
+    alias = env.get("TETRIX_PACK_EGRESS_SERVICE")
+    if alias not in ((nets.get("pack-sandbox") or {}).get("aliases") or []) or alias in services or \
+            alias in ((nets.get("default") or {}).get("aliases") or []):
+        e.append(f"B8 TETRIX_PACK_EGRESS_SERVICE {alias!r} is not the proxy's alias on pack-sandbox alone "
+                 f"(proxy networks {egr.get('networks')!r})")
     return e
 
 
@@ -108,8 +118,9 @@ if found:
         print(f"  - {f}")
     sys.exit(1)
 if not self_test:
-    print("OK: pack runner pool B1-B7 (no core settings, no healthcheck, pack-sandbox only and internal, "
-          "/scratch exec, generator-form pin matching .env.example, proxy env = API URL + denial list)")
+    print("OK: pack runner pool B1-B8 (no core settings, no healthcheck, pack-sandbox only and internal, "
+          "/scratch exec, generator-form pin matching .env.example, proxy env = API URL + denial list, "
+          "core resolves the proxy by its pack-sandbox alias)")
     sys.exit(0)
 
 RUN_ENV = "      PACK_RUNNER_CORE_SERVICES: collectors-api,collectors-worker,collectors-healthcheck\n"
@@ -129,6 +140,12 @@ CASES = {
     "B6 the anchor on the proxy": ("      PACK_EGRESS_API_URL:", "      <<: *collectors-env\n      PACK_EGRESS_API_URL:"),
     "B7 the worker off pack-sandbox": ('    command: ["worker"]\n    networks: [default, pack-sandbox]\n',
                                        '    command: ["worker"]\n'),
+    "B8 the alias removed": ("        aliases: [pack-egress]\n", ""),
+    "B8 the alias on default too": ("      default:\n      pack-sandbox:\n",
+                                    "      default:\n        aliases: [pack-egress]\n      pack-sandbox:\n"),
+    "B8 the service name in the anchor": ("  TETRIX_PACK_EGRESS_SERVICE: pack-egress\n",
+                                          "  TETRIX_PACK_EGRESS_SERVICE: collectors-pack-egress\n"),
+    "B8 a port in the anchor": ("  TETRIX_PACK_EGRESS_SERVICE: pack-egress\n", "  TETRIX_PACK_EGRESS_SERVICE: pack-egress:3128\n"),
 }
 misses = 0
 for name, (old, new) in CASES.items():
