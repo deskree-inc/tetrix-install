@@ -41,6 +41,20 @@ x-collectors-env: &collectors-env
   TETRIX_CHART_VERSION: ${TETRIX_RELEASE_VERSION:-}
   TETRIX_OPS_LOG_RETENTION_DAYS: ${TETRIX_OPS_LOG_RETENTION_DAYS:-14}
   TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS: ${TETRIX_DEPLOYMENT_ADMIN_ACCOUNTS:-}
+  # tetrix-collectors#1623 (twin of the helm collectors ConfigMap keys): where an outside
+  # data-source pack may be read from. TETRIX_REGISTRY_MODE is the same .env value licensing and
+  # the updater read (origin | customer_mirror). The mirror is the image prefix every image line
+  # uses, as given (e.g. `registry.internal/`). Compose cannot make it conditional, so in origin
+  # mode it still carries the vendor origin: collectors reads it only in customer_mirror mode.
+  TETRIX_REGISTRY_MODE: ${TETRIX_REGISTRY_MODE:-origin}
+  TETRIX_MIRROR_REGISTRY: ${TETRIX_IMAGE_ORIGIN-}
+  # tetrix-collectors#1637 (twin of the helm collectors ConfigMap keys): where an outside pack's code
+  # runs. Core resolves collectors-pack-runner to the runners' addresses on pack-sandbox, and
+  # pack-egress to the address each lease's egress goes through (core appends port 3128).
+  # tetrix-collectors#1645: pack-egress is the proxy's alias on pack-sandbox alone. Its service
+  # name answers with its default-network address, which a runner cannot reach.
+  TETRIX_PACK_RUNNER_SERVICE: collectors-pack-runner
+  TETRIX_PACK_EGRESS_SERVICE: pack-egress
   # Keycloak additive override: mode stays "logto"; ISSUER+JWKS_URL repoint verification.
   TETRIX_API_AUTH_MODE: logto
   TETRIX_API_AUTH_AUDIENCE: ${COLLECTORS_AUDIENCE_API}
@@ -706,7 +720,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-339f465}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-5bf8eb4}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -1035,7 +1049,7 @@ services:
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
   collectors-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -1046,7 +1060,7 @@ services:
     restart: "no"
 
   collectors-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     env_file:
       - path: .env
         required: true
@@ -1096,6 +1110,9 @@ services:
       # collectors.api.serviceReadyz; override the whole map with COLLECTORS_API_SERVICE_READYZ_URLS.
       TETRIX_API_SERVICE_READYZ_URLS: '${COLLECTORS_API_SERVICE_READYZ_URLS:-{"api":"http://collectors-api:8080/readyz","dispatcher":"http://collectors-dispatcher:9090/readyz","mcp":"http://collectors-mcp:9090/readyz","worker":"http://collectors-worker:9090/readyz"}}'
     command: ["api"]
+    # tetrix-collectors#1637: on pack-sandbox too, to reach the pack runners' wire (7600) and to
+    # answer the egress proxy's tunnel checks. Same on collectors-worker and collectors-healthcheck.
+    networks: [default, pack-sandbox]
     ports:
       - "${TETRIX_BIND_ADDRESS:-0.0.0.0}:8080:8080"
       - "127.0.0.1:19091:8080"
@@ -1111,7 +1128,7 @@ services:
     restart: unless-stopped
 
   collectors-mcp:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1151,7 +1168,7 @@ services:
     restart: unless-stopped
 
   collectors-dispatcher:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1176,7 +1193,7 @@ services:
     restart: unless-stopped
 
   collectors-worker:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     env_file:
       - path: .env
         required: true
@@ -1213,12 +1230,13 @@ services:
       # under `process` (and are ignored under `inline`). Only this service carries the three; each
       # is overridable from .env. The default moves to `process` in a later release, once
       # tetrix-architecture ADR-0044 is Accepted. An image from before the executor (sha-8b8037f and
-      # older) ignores all three; sha-1723847 is the first that honours them, and the 1.1.35 default
-      # pin here, sha-89ea7fa, does too.
+      # older) ignores all three; sha-1723847 is the first that honours them, and the 1.1.36 default
+      # pin here, sha-fe43ac0, does too.
       WORKER_RUN_EXECUTOR: ${WORKER_RUN_EXECUTOR:-inline}
       WORKER_RUN_MEMORY_CEILING_FRACTION: ${WORKER_RUN_MEMORY_CEILING_FRACTION:-0.8}
       WORKER_RUN_MEMORY_CEILING_MIN_MB: ${WORKER_RUN_MEMORY_CEILING_MIN_MB:-256}
     command: ["worker"]
+    networks: [default, pack-sandbox]
     # Docker's init (tini) as PID 1. The image's PID 1 is `python -m scripts.run_service`, which
     # waits only on the children it started. When the parent SIGKILLs a run child's process group at
     # the ceiling, the git and indexer processes that child started are reparented to PID 1 and, with
@@ -1272,7 +1290,7 @@ services:
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1291,6 +1309,7 @@ services:
       HEALTHCHECK_INTERVAL_SECONDS: ${HEALTHCHECK_INTERVAL_SECONDS:-3600}
       HEALTHCHECK_MAX_AUTH_FAILURES: ${HEALTHCHECK_MAX_AUTH_FAILURES:-3}
     command: ["healthcheck"]
+    networks: [default, pack-sandbox]
     healthcheck:
       test:
         [
@@ -1323,7 +1342,7 @@ services:
   # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
   # wait-for-daemon init container.
   collectors-hitl:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1365,7 +1384,7 @@ services:
   # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1405,7 +1424,7 @@ services:
   # which is why `depends_on: daemon` is here — the Compose twin of the chart's
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-89ea7fa}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1427,6 +1446,78 @@ services:
         ]
       <<: *health-interval
     restart: unless-stopped
+  # The pack runner pool (tetrix-collectors#1637; pack sandbox runtime spec §3.3, §5.1, §16.2). An
+  # outside data-source pack's code runs only here. collectors-api, -worker and -healthcheck lease
+  # one runner at a time over the wire on 7600 and stream the pack in, and the runner's supervisor
+  # (PID 1) kills and wipes everything the pack left before it takes the next lease.
+  #
+  # What a runner must never have, because the pack's code runs in it:
+  #   - core settings or secrets: no env_file, no x-collectors-env, no volume. Its one setting is
+  #     PACK_RUNNER_CORE_SERVICES, the services whose addresses it accepts the wire from;
+  #   - a route out: it is only on pack-sandbox, an internal network that reaches the egress proxy
+  #     and the core services that call it. Docker 25.0.5 and later forward no DNS from an internal
+  #     network, and dns 127.0.0.1 sends any other lookup nowhere;
+  #   - a healthcheck: Docker runs every healthcheck as a process inside the container, which the
+  #     supervisor kills at the next recycle and counts as a failed postcondition (exit 3).
+  # /scratch is mounted exec: native wheels load their shared objects from the lease's venv.
+  collectors-pack-runner:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-pack-runner:${PACK_RUNNER_IMAGE_TAG:-sha-fe43ac0}
+    deploy:
+      replicas: 2
+    user: "10101:10101"
+    read_only: true
+    tmpfs:
+      - /scratch:rw,exec,size=2g,uid=10101,gid=10101,mode=0700
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 512
+    # 2 GiB for the lease and 2 GiB for the tmpfs. The supervisor ends a lease at 3.5 GiB.
+    mem_limit: 4g
+    cpus: 1.0
+    dns: [127.0.0.1]
+    networks: [pack-sandbox]
+    environment:
+      PACK_RUNNER_CORE_SERVICES: collectors-api,collectors-worker,collectors-healthcheck
+    restart: unless-stopped
+
+  # The pack runners' egress proxy (tetrix-collectors#1637; spec §11.2). A runner's only way out:
+  # `CONNECT host:port` with the lease's token, which the proxy checks with collectors-api before it
+  # resolves the host, refuses non-global addresses and the services below, and connects. It parses
+  # traffic a pack controls, so it holds nothing worth taking: no env_file, no x-collectors-env, no
+  # DSN, no Vault token. Its environment is the API's URL and the denial list, nothing else.
+  # It keeps open tunnels for 30 s after SIGTERM.
+  collectors-pack-egress:
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # pack-egress is the name core resolves for a lease (TETRIX_PACK_EGRESS_SERVICE): scoped to
+    # pack-sandbox, it answers with the one address a runner can reach.
+    networks:
+      default:
+      pack-sandbox:
+        aliases: [pack-egress]
+    environment:
+      PACK_EGRESS_API_URL: http://collectors-api:8080
+      # A trailing `?` marks a name that may not exist: updater runs only under its profile.
+      # Every other name must resolve before the proxy opens a private tunnel (tetrix-collectors#1673).
+      PACK_EGRESS_DENY_HOSTS: admin-api,collectors-api,collectors-mcp,collectors-pack-runner,daemon,keycloak,meilisearch,neo4j,postgres,remote,seaweedfs,updater?,vault
+    command: ["pack-egress"]
+    stop_grace_period: 40s
+    # Ready once it listens on 3128; never tied to the API, so a slow API fails no upgrade.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; socket.create_connection(('127.0.0.1', 3128), 2).close()",
+        ]
+      <<: *health-interval
+    restart: unless-stopped
+
   traefik:
     image: traefik:v3.3
     depends_on:
@@ -1499,6 +1590,13 @@ services:
     entrypoint: ["curl"]
     command: ["--version"]
     restart: "no"
+
+networks:
+  # tetrix-collectors#1637: the pack runner pool's network (spec §3.3). Internal: no route out of
+  # the host, and Docker forwards no DNS from it. Only the runners, the egress proxy and the core
+  # services that call them are on it; Postgres, Vault, the daemon and the rest are not.
+  pack-sandbox:
+    internal: true
 
 volumes:
   postgres-data:

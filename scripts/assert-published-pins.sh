@@ -4,11 +4,13 @@
 # A customer install's 0.8.41 lock wanted tetrix-licensing:sha-48d76f3 (amd64 child
 # sha256:8b99820c… moved → MANIFEST_UNKNOWN) and tetrixaidb{,-remote}:sha-7dd9f22
 # (also unpublished on GHCR). sha-48d76f3 resolves again, but not to the bytes that
-# lock recorded, so it stays forbidden. Current pins match Helm 1.1.35 (collectors sha-89ea7fa is
-# tetrix-collectors main 89ea7fa, the squash of #1563 (packs release-one close-out), publish-image run
-# 44352686170, baking the cli-v0.6.8 CLI (GHCR index sha256:871768ab389f); it carries migration
-# 0049_source_packs from fea66c8 and adds none; front-end sha-339f465 is front-end main 339f465, the squash
-# of #383 (packs close-out UI fixes), publish-image run 44352733169 (GHCR index sha256:117037dbd38c);
+# lock recorded, so it stays forbidden. Current pins match Helm 1.1.36 (collectors sha-fe43ac0 is
+# tetrix-collectors main fe43ac09, the merge of #1673 (outside data-source packs), publish-image run
+# 45439799131, baking the cli-v0.6.8 CLI (GHCR index sha256:e1b199cd279b); it adds migrations
+# 0050_source_pack_record, 0051_pack_leases and 0052_sandbox_refusal_counts; the pack runner
+# sha-fe43ac0 is the same merge, publish-pack-runner-image run 45439799672 (GHCR index
+# sha256:a8cffebe097e), its first publish; front-end sha-5bf8eb4 is front-end main 5bf8eb4, the squash
+# of #385 (outside packs UI), publish-image run 45443242686 (GHCR index sha256:ac6ffeae606b);
 # daemon/remote sha-fbd9dbe is tetrix-ee main fbd9dbe, docker-build-push run 44203307177, the indexer's
 # Vue/Svelte parser fix and no store migration; gateway sha-0d55284 is gateway#53, docker-build-push run
 # 42860903238, a CI-only rebuild of sha-6fd804d; sha-3f7baca and sha-d83d976 were cancelled before they
@@ -17,8 +19,9 @@
 # each tag resolved on ghcr.io/deskree-inc for linux/amd64 + linux/arm64):
 #   daemon/remote      sha-fbd9dbe
 #   licensing/updater  sha-349d602  (do not republish 8b99820c)
-#   collectors         sha-89ea7fa
-#   frontend           sha-339f465
+#   collectors         sha-fe43ac0
+#   pack-runner        sha-fe43ac0
+#   frontend           sha-5bf8eb4
 #   iam                sha-04b1e55
 #   admin-api          sha-349d602
 #   audit-logs         sha-2a150cc
@@ -58,7 +61,11 @@ errors = []
 # instead of the newest published build lands on them.
 # sha-423c2c9 (front-end main 2026-10-21, its publish failed) and sha-baaaa5a (collectors #1368's
 # merge, never published on its own) are the same trap for this repin.
-UNPUBLISHED = ("sha-48d76f3", "sha-7dd9f22", "sha-09a15db", "sha-d35e356", "sha-423c2c9", "sha-baaaa5a", "sha-3f7baca", "sha-d83d976")
+# For 1.1.36 the same trap is every default-branch tip past the pinned builds: iam master
+# cde9c26/5bf7494/5a6e1d8/7b88cdf (docs and CI), admin-api main f3778e4/ebc212a (CI) and audit-logs
+# main a952d6e/46199f0 (CI) published no image.
+UNPUBLISHED = ("sha-48d76f3", "sha-7dd9f22", "sha-09a15db", "sha-d35e356", "sha-423c2c9", "sha-baaaa5a", "sha-3f7baca", "sha-d83d976",
+               "sha-cde9c26", "sha-5bf7494", "sha-5a6e1d8", "sha-7b88cdf", "sha-f3778e4", "sha-ebc212a", "sha-a952d6e", "sha-46199f0")
 for name, text, forbidden in (
     (".env.example", uncomment(env), UNPUBLISHED),
     ("docker-compose.yml", compose, UNPUBLISHED),
@@ -71,9 +78,10 @@ for name, text, forbidden in (
 required_env = (
     ("TETRIX_IMAGE_TAG=sha-fbd9dbe", "TETRIX_IMAGE_TAG"),
     ("KEYCLOAK_IMAGE_TAG=sha-04b1e55", "KEYCLOAK_IMAGE_TAG"),
-    ("FRONTEND_IMAGE_TAG=sha-339f465", "FRONTEND_IMAGE_TAG"),
+    ("FRONTEND_IMAGE_TAG=sha-5bf8eb4", "FRONTEND_IMAGE_TAG"),
     ("AUDIT_LOGS_IMAGE_TAG=sha-2a150cc", "AUDIT_LOGS_IMAGE_TAG"),
-    ("COLLECTORS_IMAGE_TAG=sha-89ea7fa", "COLLECTORS_IMAGE_TAG"),
+    ("COLLECTORS_IMAGE_TAG=sha-fe43ac0", "COLLECTORS_IMAGE_TAG"),
+    ("PACK_RUNNER_IMAGE_TAG=sha-fe43ac0", "PACK_RUNNER_IMAGE_TAG"),
     ("ADMIN_API_IMAGE_TAG=sha-349d602", "ADMIN_API_IMAGE_TAG"),
     ("LICENSING_IMAGE_TAG=sha-349d602", "LICENSING_IMAGE_TAG"),
     ("UPDATER_IMAGE_TAG=sha-349d602", "UPDATER_IMAGE_TAG"),
@@ -81,14 +89,14 @@ required_env = (
 )
 for needle, label in required_env:
     if needle not in env:
-        errors.append(f".env.example must pin {needle} (Helm 1.1.34)")
+        errors.append(f".env.example must pin {needle} (Helm 1.1.36)")
 
 required_compose = (
     (":-sha-fbd9dbe}", "daemon/remote"),
     (":-sha-04b1e55}", "iam"),
-    (":-sha-339f465}", "frontend"),
+    (":-sha-5bf8eb4}", "frontend"),
     (":-sha-2a150cc}", "audit-logs"),
-    (":-sha-89ea7fa}", "collectors"),
+    (":-sha-fe43ac0}", "collectors"),
     (":-sha-349d602}", "admin-api/licensing/updater"),
     (":-sha-0d55284}", "gateway"),
 )
@@ -132,6 +140,6 @@ print("ok")
 PY
 
 if [[ "$fail" -eq 0 ]]; then
-  ok "public compose pins match Helm 1.1.34 published tags and does not pass --quiet"
+  ok "public compose pins match Helm 1.1.36 published tags and does not pass --quiet"
 fi
 exit "$fail"
