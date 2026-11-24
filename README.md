@@ -4,11 +4,33 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.34**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.34)).
-This tree's `VERSION` is **1.1.35** (not released yet), matching Helm chart 1.1.35. 1.1.35 moves
-the collectors to `sha-89ea7fa` and the front-end to `sha-339f465`: the data-source packs release-one
-close-out. Every other first-party image is unchanged. In 1.1.35:
+Latest published release: **1.1.35**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.35)).
+This tree's `VERSION` is **1.1.36** (not released yet), matching Helm chart 1.1.36. 1.1.36 ships
+outside data-source packs: it moves the collectors to `sha-fe43ac0` and the front-end to
+`sha-5bf8eb4`, and adds two services, the pack runner pool (`tetrix-pack-runner:sha-fe43ac0`) and its
+egress proxy. Every other first-party image is unchanged. In 1.1.36:
+
+- **Outside data-source packs** (collectors `sha-fe43ac0` with front-end `sha-5bf8eb4`): an admin can
+  add a pack that Tetrix did not write from a registry address, under Sources > Manage sources, after
+  a sideload warning, and later update or remove it. Every surface that shows its source marks it as
+  an outside pack (tetrix-collectors#1673, tetrix-front-end#385).
+- **Two new services.** `collectors-pack-runner` (two replicas) is the only place an outside pack's
+  code runs. It has no secret, no volume and no route out: it sits only on `pack-sandbox`, a new
+  internal Docker network. `collectors-pack-egress` runs the collectors image and is a runner's only
+  way out, through a `CONNECT` proxy that checks each tunnel with `collectors-api` and refuses the
+  bundle's own services. `collectors-api`, `collectors-worker` and `collectors-healthcheck` join
+  `pack-sandbox` to reach the runners. A runner's DNS points at 127.0.0.1, so it resolves no name
+  of its own.
+- **Migrations** (run by `collectors-migrate`, additive, no backfill): `0050_source_pack_record`,
+  `0051_pack_leases` and `0052_sandbox_refusal_counts`. Downgrading below `0050` refuses while an
+  outside pack exists, and below `0051` while a webhook delivery is still pending.
+- **New env:** none to set. `PACK_RUNNER_IMAGE_TAG` pins the runner like the other image tags. In
+  `customer_mirror` mode (`TETRIX_REGISTRY_MODE`) the collectors read outside packs only from the
+  mirror in `TETRIX_IMAGE_ORIGIN`; set both together. The baked `tetrix index` CLI stays `cli-v0.6.8`.
+
+In 1.1.35 (published), which moved the collectors to `sha-89ea7fa` and the front-end to
+`sha-339f465`, the data-source packs release-one close-out:
 
 - **Collectors `sha-89ea7fa`:** a config-only edit that switches a connection's auth mode runs that
   mode's credential check (tetrix-collectors#1540). A webhook delivery for a connection whose pack is
@@ -428,8 +450,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-89ea7fa` is a one-way schema advance from anything older than `sha-fea66c8`.** The
-migrate job runs `alembic upgrade head`. `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-fe43ac0` is a one-way schema advance from anything older than `sha-fea66c8`.** The
+migrate job runs `alembic upgrade head`. `sha-fe43ac0` adds `0050_source_pack_record`, `0051_pack_leases` and `0052_sandbox_refusal_counts` (additive, no backfill). `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
