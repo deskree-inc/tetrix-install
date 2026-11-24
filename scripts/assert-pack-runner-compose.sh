@@ -86,8 +86,16 @@ def errors(text, env_text):
     api_port = str(((services.get("collectors-api") or {}).get("environment") or {}).get("PORT", ""))
     if eenv.get("PACK_EGRESS_API_URL") != f"http://collectors-api:{api_port}":
         e.append(f"B6 PACK_EGRESS_API_URL {eenv.get('PACK_EGRESS_API_URL')!r} is not collectors-api on its PORT {api_port}")
-    if not all(re.fullmatch(r"[a-z0-9-]+", h) for h in str(eenv.get("PACK_EGRESS_DENY_HOSTS", "")).split(",")):
-        e.append("B6 PACK_EGRESS_DENY_HOSTS is not bare service names")
+    # A trailing `?` marks a service that may not run (a profile's): the proxy then accepts its
+    # name not existing. Every other name must resolve before a private tunnel opens (collectors #1673).
+    deny_names = str(eenv.get("PACK_EGRESS_DENY_HOSTS", "")).split(",")
+    if not all(re.fullmatch(r"[a-z0-9-]+\??", h) for h in deny_names):
+        e.append("B6 PACK_EGRESS_DENY_HOSTS is not bare service names, each optionally marked `?`")
+    for h in deny_names:
+        name = h.rstrip("?")
+        profiled = bool((services.get(name) or {}).get("profiles"))
+        if name in services and profiled != h.endswith("?"):
+            e.append(f"B6 PACK_EGRESS_DENY_HOSTS marks {name} {'optional' if h.endswith('?') else 'required'}, but it {'runs only under a profile' if profiled else 'always runs'}")
     if egr.get("command") != ["pack-egress"]:
         e.append(f"B6 proxy command {egr.get('command')!r}")
     for s in CORE_SERVICES.split(","):
