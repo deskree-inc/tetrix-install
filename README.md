@@ -4,12 +4,31 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.35**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.35)).
-This tree's `VERSION` is **1.1.36** (not released yet), matching Helm chart 1.1.36. 1.1.36 ships
-outside data-source packs: it moves the collectors to `sha-fe43ac0` and the front-end to
-`sha-5bf8eb4`, and adds two services, the pack runner pool (`tetrix-pack-runner:sha-fe43ac0`) and its
-egress proxy. Every other first-party image is unchanged. In 1.1.36:
+Latest published release: **1.1.36**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.36)).
+This tree's `VERSION` is **1.1.37** (not released yet), matching Helm chart 1.1.37. 1.1.37 is a
+repin on top of 1.1.36's outside data-source packs: it moves the collectors and the pack runner to
+`sha-1361407` and the front-end to `sha-02d1f72`. Every other first-party image is unchanged, there
+is no migration, and there is no new env. In 1.1.37:
+
+- **A pack runner no longer exits 3 after a call session** (tetrix-collectors#1692, fixing #1684).
+  A runner that had served a validate or picker call could exit non-zero on recycle and show up as
+  a restart.
+- **Clearer sandbox diagnostics:** a full `/scratch` reports itself as full instead of surfacing as
+  a bare `EACCES` (#1685), and recycle says why a runner's file descriptors ran out (#1687).
+- **A probe that finishes after its audit window still records its verdict** (#1677), so a slow
+  outside-pack probe leaves no empty audit row.
+- **The generic picker lists a pack that declares no auth mode** instead of dropping it from the
+  list (tetrix-front-end#386, tetrix-collectors#1679). The pack SDK documents `auth_modes` (#1680).
+- **Where the cluster's CNI does not enforce NetworkPolicy**, the UI says the pack egress fence is
+  absent rather than implying it holds (tetrix-front-end#387, tetrix-collectors#1682). On this
+  Compose bundle that fence is the `pack-sandbox` network plus the egress proxy's deny list, which
+  now names every service in `docker-compose.yml` instead of a short list, so an outside pack cannot
+  reach one of them by its container address (tetrix-collectors#1675).
+
+In 1.1.36 (published), which moved the collectors to `sha-fe43ac0` and the front-end to
+`sha-5bf8eb4` and added two services, the pack runner pool (`tetrix-pack-runner:sha-fe43ac0`) and
+its egress proxy:
 
 - **Outside data-source packs** (collectors `sha-fe43ac0` with front-end `sha-5bf8eb4`): an admin can
   add a pack that Tetrix did not write from a registry address, under Sources > Manage sources, after

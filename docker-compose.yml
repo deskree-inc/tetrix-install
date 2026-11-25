@@ -720,7 +720,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-5bf8eb4}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-front-end:${FRONTEND_IMAGE_TAG:-sha-02d1f72}
     volumes:
       - ./frontend/config.json:/usr/share/nginx/html/config.json:ro
     healthcheck:
@@ -1049,7 +1049,7 @@ services:
 
   # ── Collectors (full platform) ──────────────────────────────────────────────
   collectors-migrate:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     env_file: .env
     depends_on:
       postgres-ensure-control-plane:
@@ -1060,7 +1060,7 @@ services:
     restart: "no"
 
   collectors-api:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     env_file:
       - path: .env
         required: true
@@ -1128,7 +1128,7 @@ services:
     restart: unless-stopped
 
   collectors-mcp:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1168,7 +1168,7 @@ services:
     restart: unless-stopped
 
   collectors-dispatcher:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1193,7 +1193,7 @@ services:
     restart: unless-stopped
 
   collectors-worker:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     env_file:
       - path: .env
         required: true
@@ -1230,8 +1230,8 @@ services:
       # under `process` (and are ignored under `inline`). Only this service carries the three; each
       # is overridable from .env. The default moves to `process` in a later release, once
       # tetrix-architecture ADR-0044 is Accepted. An image from before the executor (sha-8b8037f and
-      # older) ignores all three; sha-1723847 is the first that honours them, and the 1.1.36 default
-      # pin here, sha-fe43ac0, does too.
+      # older) ignores all three; sha-1723847 is the first that honours them, and the 1.1.37 default
+      # pin here, sha-1361407, does too.
       WORKER_RUN_EXECUTOR: ${WORKER_RUN_EXECUTOR:-inline}
       WORKER_RUN_MEMORY_CEILING_FRACTION: ${WORKER_RUN_MEMORY_CEILING_FRACTION:-0.8}
       WORKER_RUN_MEMORY_CEILING_MIN_MB: ${WORKER_RUN_MEMORY_CEILING_MIN_MB:-256}
@@ -1290,7 +1290,7 @@ services:
   # (or recreate it) after pulling this version, BEFORE the first `--profile healthcheck up`, or the
   # service starts without VAULT_TOKEN.
   collectors-healthcheck:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     profiles: ["healthcheck"]
     env_file:
       - path: .env
@@ -1342,7 +1342,7 @@ services:
   # write-back is an SDK call, so `depends_on: daemon` is the Compose twin of the chart's
   # wait-for-daemon init container.
   collectors-hitl:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     profiles: ["hitl"]
     env_file: .env
     depends_on:
@@ -1384,7 +1384,7 @@ services:
   # control plane (the owner's mappings + the queue) and the daemon (the AIDB write), which is why
   # `depends_on: daemon` is here — the Compose twin of the chart's wait-for-daemon init container.
   collectors-identity-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     profiles: ["identity-consumer"]
     env_file: .env
     depends_on:
@@ -1424,7 +1424,7 @@ services:
   # which is why `depends_on: daemon` is here — the Compose twin of the chart's
   # wait-for-daemon init container. Single replica: never two projectors on one queue.
   collectors-session-consumer:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     env_file: .env
     depends_on:
       collectors-migrate:
@@ -1461,7 +1461,7 @@ services:
   #     supervisor kills at the next recycle and counts as a failed postcondition (exit 3).
   # /scratch is mounted exec: native wheels load their shared objects from the lease's venv.
   collectors-pack-runner:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-pack-runner:${PACK_RUNNER_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-pack-runner:${PACK_RUNNER_IMAGE_TAG:-sha-1361407}
     deploy:
       replicas: 2
     user: "10101:10101"
@@ -1487,7 +1487,7 @@ services:
   # DSN, no Vault token. Its environment is the API's URL and the denial list, nothing else.
   # It keeps open tunnels for 30 s after SIGTERM.
   collectors-pack-egress:
-    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-fe43ac0}
+    image: ${TETRIX_IMAGE_ORIGIN-}deskree/tetrix-collectors:${COLLECTORS_IMAGE_TAG:-sha-1361407}
     read_only: true
     tmpfs:
       - /tmp
@@ -1501,9 +1501,14 @@ services:
         aliases: [pack-egress]
     environment:
       PACK_EGRESS_API_URL: http://collectors-api:8080
-      # A trailing `?` marks a name that may not exist: updater runs only under its profile.
-      # Every other name must resolve before the proxy opens a private tunnel (tetrix-collectors#1673).
-      PACK_EGRESS_DENY_HOSTS: admin-api,collectors-api,collectors-mcp,collectors-pack-runner,daemon,keycloak,meilisearch,neo4j,postgres,remote,seaweedfs,updater?,vault
+      # Every service of this file (tetrix-collectors#1675): a name resolves to its container's own
+      # address, and an admin's private config host may name any of them by that address.
+      # A trailing `?` marks a name that may not exist: a service that runs only under a profile,
+      # or a one-shot (restart: "no") that has exited. Every other name must resolve before the
+      # proxy opens a private tunnel (tetrix-collectors#1673).
+      # This bundle has no `seaweedfs-archive`, so its name is the only one the chart's twin lists
+      # that is absent here.
+      PACK_EGRESS_DENY_HOSTS: admin-api,audit-logs,audit-logs-migrate?,collectors-api,collectors-dispatcher,collectors-healthcheck?,collectors-hitl?,collectors-identity-consumer?,collectors-mcp,collectors-migrate?,collectors-pack-egress,collectors-pack-runner,collectors-session-consumer,collectors-worker,daemon,frontend,gateway,health-probe?,keycloak,keycloak-dcr-scope-repair,keycloak-owner-org-resolve?,keycloak-owner-org-sync?,keycloak-provision?,licensing,licensing-migrate?,meilisearch,neo4j,postgres,postgres-ensure-audit-logs?,postgres-ensure-control-plane?,postgres-ensure-keycloak?,postgres-ensure-licensing?,remote,seaweedfs,traefik,updater?,vault,vault-init?,vault-perms?,vault-unseal
     command: ["pack-egress"]
     stop_grace_period: 40s
     # Ready once it listens on 3128; never tied to the API, so a slow API fails no upgrade.
