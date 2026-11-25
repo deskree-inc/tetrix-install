@@ -11,20 +11,29 @@ repin on top of 1.1.36's outside data-source packs: it moves the collectors and 
 `sha-1361407` and the front-end to `sha-02d1f72`. Every other first-party image is unchanged, there
 is no migration, and there is no new env. In 1.1.37:
 
-- **A pack runner no longer exits 3 after a call session** (tetrix-collectors#1692, fixing #1684).
-  A runner that had served a validate or picker call could exit non-zero on recycle and show up as
-  a restart.
-- **Clearer sandbox diagnostics:** a full `/scratch` reports itself as full instead of surfacing as
-  a bare `EACCES` (#1685), and recycle says why a runner's file descriptors ran out (#1687).
-- **A probe that finishes after its audit window still records its verdict** (#1677), so a slow
-  outside-pack probe leaves no empty audit row.
-- **The generic picker lists a pack that declares no auth mode** instead of dropping it from the
-  list (tetrix-front-end#386, tetrix-collectors#1679). The pack SDK documents `auth_modes` (#1680).
-- **Where the cluster's CNI does not enforce NetworkPolicy**, the UI says the pack egress fence is
-  absent rather than implying it holds (tetrix-front-end#387, tetrix-collectors#1682). On this
-  Compose bundle that fence is the `pack-sandbox` network plus the egress proxy's deny list, which
-  now names every service in `docker-compose.yml` instead of a short list, so an outside pack cannot
-  reach one of them by its container address (tetrix-collectors#1675).
+- **A pack runner no longer exits 3 and restarts after a create session** (tetrix-collectors#1692,
+  fixing #1684). After a create session's final validate the collectors API hangs up, the peer
+  resets the connection, and the runner's recycle check mistook its own connection for a descriptor
+  the pack had leaked. Nothing was leaked, but the pool lost a runner each time. This bundle dials
+  the runner directly, so it was affected.
+- **A healthy sync is no longer refused `sandbox_limit: disk`** (#1685, fixing #1683). The
+  `/scratch` check read a pack process whose `/proc` file-descriptor table the kernel briefly hides
+  as a full disk. It now re-reads it; a process that stays unreadable is still refused.
+- **A failed recycle `fds` check names each unexplained descriptor** — kind, state and port, never
+  a path or a peer address (#1687) — so the next occurrence can be diagnosed from the log.
+- **A late probe pass is audited** (#1677): a probe that outruns its 30 s wait and comes back a
+  pass over a `pending` or `failed` one now emits the same `source_pack.updated` event as the
+  in-request lift. The verdict was already recorded; only the audit was missing.
+- **Add data source offers a pack that declares no auth mode** (tetrix-front-end#386,
+  tetrix-collectors#1679). The picker hid any catalog entry with an empty `auth_modes`, so a pack
+  built with the SDK could be added and never offered. #1680 is the SDK half: the scaffold names a
+  mode and the manifest reference documents the field.
+- **`fence_absent` now reads as a prerequisite, not a raw reason** (tetrix-front-end#387,
+  tetrix-collectors#1682). A pack card and a deferred run say the pack cannot be checked or run
+  until the runner's network fence holds. On this Compose bundle that fence is the `pack-sandbox`
+  network plus the egress proxy's deny list, which now names every service in `docker-compose.yml`
+  instead of a short list, so an outside pack cannot reach one of them by its container address
+  (tetrix-collectors#1675).
 
 In 1.1.36 (published), which moved the collectors to `sha-fe43ac0` and the front-end to
 `sha-5bf8eb4` and added two services, the pack runner pool (`tetrix-pack-runner:sha-fe43ac0`) and
