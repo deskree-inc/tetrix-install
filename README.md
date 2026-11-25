@@ -478,8 +478,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-fe43ac0` is a one-way schema advance from anything older than `sha-fea66c8`.** The
-migrate job runs `alembic upgrade head`. `sha-fe43ac0` adds `0050_source_pack_record`, `0051_pack_leases` and `0052_sandbox_refusal_counts` (additive, no backfill). `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-1361407` is a one-way schema advance from anything older than `sha-fea66c8`.** The
+migrate job runs `alembic upgrade head`. `sha-1361407` adds no migration of its own; the schema stays at `0052_sandbox_refusal_counts`. `sha-fe43ac0` adds `0050_source_pack_record`, `0051_pack_leases` and `0052_sandbox_refusal_counts` (additive, no backfill). `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
