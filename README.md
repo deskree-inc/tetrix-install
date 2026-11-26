@@ -17,9 +17,9 @@ that the two installers keep one shared number. There is no migration and no new
   `Secret "sh.helm.release.v1.<release>.vNNN" is invalid: data: Too long` — the install could not
   be moved at all. Chart 1.1.38 stops packaging seven files no template reads (Python bytecode
   caches, a live-proof script, a CI-only deploy helper and the three local-development values
-  overlays). On the worst-case values profile that takes the stored release from about 1,063,900
-  to about 989,400 bytes, and two new CI gates keep it under budget. **Docker Compose installs
-  were never affected**: Compose keeps no release Secret.
+  overlays). On the worst-case values profile that takes the stored release from 1,064,330 bytes,
+  measured on the published 1.1.37 chart, down to 990,062, and two new CI gates keep it under
+  budget. **Docker Compose installs were never affected**: Compose keeps no release Secret.
 
 In 1.1.37 (published), which moved the collectors and the pack runner to `sha-1361407` and the
 front-end to `sha-02d1f72`:
