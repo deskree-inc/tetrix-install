@@ -7,9 +7,9 @@ Deskree GitHub repository.
 Latest published release: **1.1.37**
 ([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.37)).
 This tree's `VERSION` is **1.1.38** (not released yet), matching Helm chart 1.1.38. 1.1.38 is a
-Helm-only fix. Every first-party image pin is exactly the one 1.1.37 shipped, so **this Compose
-bundle's contents are byte-for-byte what 1.1.37 published** — the version moves only so the two
-installers keep one shared number. There is no migration and no new env. In 1.1.38:
+Helm-only fix. Every first-party image pin is exactly the one 1.1.37 shipped, and so are the
+compose file, the env and every script a customer runs. Only `VERSION` and these notes differ, so
+that the two installers keep one shared number. There is no migration and no new env. In 1.1.38:
 
 - **A Helm install with many settings switched on can be upgraded again.** Helm stores one release
   as `base64(gzip(json(release)))` in a single Kubernetes Secret, and Kubernetes caps a Secret's
@@ -17,9 +17,9 @@ installers keep one shared number. There is no migration and no new env. In 1.1.
   `Secret "sh.helm.release.v1.<release>.vNNN" is invalid: data: Too long` — the install could not
   be moved at all. Chart 1.1.38 stops packaging seven files no template reads (Python bytecode
   caches, a live-proof script, a CI-only deploy helper and the three local-development values
-  overlays), which takes the stored release from 1,048,692 to 972,108 bytes on a representative
-  install, and adds two CI gates that keep it under budget. **Docker Compose installs were never
-  affected**: Compose keeps no release Secret.
+  overlays). On the worst-case values profile that takes the stored release from about 1,063,900
+  to about 989,400 bytes, and two new CI gates keep it under budget. **Docker Compose installs
+  were never affected**: Compose keeps no release Secret.
 
 In 1.1.37 (published), which moved the collectors and the pack runner to `sha-1361407` and the
 front-end to `sha-02d1f72`:
