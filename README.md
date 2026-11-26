@@ -4,12 +4,40 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.35**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.35)).
-This tree's `VERSION` is **1.1.36** (not released yet), matching Helm chart 1.1.36. 1.1.36 ships
-outside data-source packs: it moves the collectors to `sha-fe43ac0` and the front-end to
-`sha-5bf8eb4`, and adds two services, the pack runner pool (`tetrix-pack-runner:sha-fe43ac0`) and its
-egress proxy. Every other first-party image is unchanged. In 1.1.36:
+Latest published release: **1.1.36**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.36)).
+This tree's `VERSION` is **1.1.37** (not released yet), matching Helm chart 1.1.37. 1.1.37 is a
+repin on top of 1.1.36's outside data-source packs: it moves the collectors and the pack runner to
+`sha-1361407` and the front-end to `sha-02d1f72`. Every other first-party image is unchanged, there
+is no migration, and there is no new env. In 1.1.37:
+
+- **A pack runner no longer exits 3 and restarts after a create session** (tetrix-collectors#1692,
+  fixing #1684). After a create session's final validate the collectors API hangs up, the peer
+  resets the connection, and the runner's recycle check mistook its own connection for a descriptor
+  the pack had leaked. Nothing was leaked, but the pool lost a runner each time. This bundle dials
+  the runner directly, so it was affected.
+- **A healthy sync is no longer refused `sandbox_limit: disk`** (#1685, fixing #1683). The
+  `/scratch` check read a pack process whose `/proc` file-descriptor table the kernel briefly hides
+  as a full disk. It now re-reads it; a process that stays unreadable is still refused.
+- **A failed recycle `fds` check names each unexplained descriptor** — kind, state and port, never
+  a path or a peer address (#1687) — so the next occurrence can be diagnosed from the log.
+- **A late probe pass is audited** (#1677): a probe that outruns its 30 s wait and comes back a
+  pass over a `pending` or `failed` one now emits the same `source_pack.updated` event as the
+  in-request lift. The verdict was already recorded; only the audit was missing.
+- **Add data source offers a pack that declares no auth mode** (tetrix-front-end#386,
+  tetrix-collectors#1679). The picker hid any catalog entry with an empty `auth_modes`, so a pack
+  built with the SDK could be added and never offered. #1680 is the SDK half: the scaffold names a
+  mode and the manifest reference documents the field.
+- **`fence_absent` now reads as a prerequisite, not a raw reason** (tetrix-front-end#387,
+  tetrix-collectors#1682). A pack card and a deferred run say the pack cannot be checked or run
+  until the runner's network fence holds. On this Compose bundle that fence is the `pack-sandbox`
+  network plus the egress proxy's deny list, which now names every service in `docker-compose.yml`
+  instead of a short list, so an outside pack cannot reach one of them by its container address
+  (tetrix-collectors#1675).
+
+In 1.1.36 (published), which moved the collectors to `sha-fe43ac0` and the front-end to
+`sha-5bf8eb4` and added two services, the pack runner pool (`tetrix-pack-runner:sha-fe43ac0`) and
+its egress proxy:
 
 - **Outside data-source packs** (collectors `sha-fe43ac0` with front-end `sha-5bf8eb4`): an admin can
   add a pack that Tetrix did not write from a registry address, under Sources > Manage sources, after
@@ -450,8 +478,8 @@ docker compose up -d --remove-orphans
 
 `setup.sh` never rotates existing secrets and never overwrites a non-empty pin.
 
-**Collectors `sha-fe43ac0` is a one-way schema advance from anything older than `sha-fea66c8`.** The
-migrate job runs `alembic upgrade head`. `sha-fe43ac0` adds `0050_source_pack_record`, `0051_pack_leases` and `0052_sandbox_refusal_counts` (additive, no backfill). `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
+**Collectors `sha-1361407` is a one-way schema advance from anything older than `sha-fea66c8`.** The
+migrate job runs `alembic upgrade head`. `sha-1361407` adds no migration of its own; the schema stays at `0052_sandbox_refusal_counts`. `sha-fe43ac0` adds `0050_source_pack_record`, `0051_pack_leases` and `0052_sandbox_refusal_counts` (additive, no backfill). `sha-89ea7fa`, `sha-52b0d41` and `sha-41aaa36` add no migration of their own. `sha-fea66c8` adds `0049_source_packs` (one new table, no backfill). `sha-948ecb6`, `sha-975a9f6`, `sha-9058736` and `sha-2c700ce` add no migration of their own. `sha-7055373` adds `0047_finding_result_watermark` and
 `0048_findings_members_gin` (additive, no backfill). `sha-ba4a0b0` added `0046_whole_read_refusals` (two nullable columns on
 `graph_snapshots`, no backfill). `sha-0c3bce5` added `0044_graph_snapshot_shards` and
 `0045_graph_snapshot_shards_vacuum` (new tables and their autovacuum settings, no backfill).
