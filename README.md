@@ -4,12 +4,25 @@ Public installers for **Tetrix Enterprise**: Docker Compose (this repository)
 and Helm via a published OCI chart. You do **not** need access to any other
 Deskree GitHub repository.
 
-Latest published release: **1.1.36**
-([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.36)).
-This tree's `VERSION` is **1.1.37** (not released yet), matching Helm chart 1.1.37. 1.1.37 is a
-repin on top of 1.1.36's outside data-source packs: it moves the collectors and the pack runner to
-`sha-1361407` and the front-end to `sha-02d1f72`. Every other first-party image is unchanged, there
-is no migration, and there is no new env. In 1.1.37:
+Latest published release: **1.1.37**
+([GitHub Release](https://github.com/deskree-inc/tetrix-install/releases/tag/v1.1.37)).
+This tree's `VERSION` is **1.1.38** (not released yet), matching Helm chart 1.1.38. 1.1.38 is a
+Helm-only fix. Every first-party image pin is exactly the one 1.1.37 shipped, so **this Compose
+bundle's contents are byte-for-byte what 1.1.37 published** — the version moves only so the two
+installers keep one shared number. There is no migration and no new env. In 1.1.38:
+
+- **A Helm install with many settings switched on can be upgraded again.** Helm stores one release
+  as `base64(gzip(json(release)))` in a single Kubernetes Secret, and Kubernetes caps a Secret's
+  data at 1,048,576 bytes. Chart 1.1.37 crossed that cap, and `helm upgrade` refused with
+  `Secret "sh.helm.release.v1.<release>.vNNN" is invalid: data: Too long` — the install could not
+  be moved at all. Chart 1.1.38 stops packaging seven files no template reads (Python bytecode
+  caches, a live-proof script, a CI-only deploy helper and the three local-development values
+  overlays), which takes the stored release from 1,048,692 to 972,108 bytes on a representative
+  install, and adds two CI gates that keep it under budget. **Docker Compose installs were never
+  affected**: Compose keeps no release Secret.
+
+In 1.1.37 (published), which moved the collectors and the pack runner to `sha-1361407` and the
+front-end to `sha-02d1f72`:
 
 - **A pack runner no longer exits 3 and restarts after a create session** (tetrix-collectors#1692,
   fixing #1684). After a create session's final validate the collectors API hangs up, the peer
